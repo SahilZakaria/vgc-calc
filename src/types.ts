@@ -60,13 +60,21 @@ export interface Pokemon {
   status: 'none' | 'brn' | 'par' | 'psn' | 'tox' | 'slp' | 'frz';
 }
 
-export type Weather = 'none' | 'sun' | 'rain' | 'sand' | 'snow';
+export type Weather = 'none' | 'sun' | 'rain' | 'sand' | 'snow' | 'harshSun' | 'heavyRain' | 'strongWinds';
 export type Terrain = 'none' | 'electric' | 'grassy' | 'misty' | 'psychic';
 
 export interface SideState {
   reflect: boolean;
   lightScreen: boolean;
   auroraVeil: boolean;
+  tailwind: boolean;
+  helpingHand: boolean;
+  friendGuard: boolean;
+  battery: boolean;
+  powerSpot: boolean;
+  steelySpirit: boolean;
+  stealthRock: boolean;
+  spikes: number;
 }
 
 export interface FieldState {
@@ -75,10 +83,13 @@ export interface FieldState {
   isDoubles: boolean;
   isGravity: boolean;
   isWonderRoom: boolean;
+  isMagicRoom: boolean;
+  isBeadsOfRuin: boolean;
+  isSwordOfRuin: boolean;
+  isTabletsOfRuin: boolean;
+  isVesselOfRuin: boolean;
   attackerSide: SideState;
   defenderSide: SideState;
-  attackerAlly: Pokemon | null;
-  defenderAlly: Pokemon | null;
 }
 
 export interface DamageContext {
