@@ -1,7 +1,13 @@
+import { calculate as smogonCalculate, toID } from '@smogon/calc';
 import { describe, expect, it } from 'vitest';
+// Test-only use of the oracle adapter; field.ts itself never imports it.
+import {
+  smogonGeneration, toSmogonField, toSmogonMove, toSmogonPokemon, type OracleGame,
+} from '../../oracle/smogon-adapter';
 import type {
   DamageContext, FieldState, Move, MoveCategory, Pokemon, SideState, StatTable, TypeName,
 } from '../../types';
+import { calculate } from '../calculate';
 import { calculateBaseDamage } from '../damage';
 import { MODIFIER_ORDER, runPipeline, runPostRoll, runPreRoll, sortModifiers } from '../modifier-pipeline';
 import { getDefensiveTypes, getTypeEffectiveness } from '../type-chart';
@@ -25,6 +31,8 @@ import {
   terrainMultiplier,
   VESSEL_OF_RUIN_MODIFIER,
   WEATHER_BOOST,
+  WEATHER_DEFENSE_BOOST,
+  WEATHER_DEFENSE_MODIFIER,
   WEATHER_MODIFIER,
   WEATHER_WEAKEN,
   weatherMultiplier,
@@ -179,6 +187,8 @@ describe('constants', () => {
     expect(SCREEN_DOUBLES).toBe(2732);
     expect(SCREEN_SINGLES).toBe(2048);
     expect(RUIN_MULTIPLIER).toBe(3072);
+    // gen789.js calculateDefenseSMSSSV: pokeRound((defense * 3) / 2).
+    expect(WEATHER_DEFENSE_BOOST / 4096).toBe(3 / 2);
   });
 
   it('weather and screens occupy their pipeline slots', () => {
@@ -476,5 +486,189 @@ describe('Ruin abilities vs @smogon/calc (Gen 9 Singles)', () => {
       attacker: { ability: 'Tablets of Ruin', abilitySuppressed: true },
     });
     expect(TABLETS_OF_RUIN_MODIFIER.applies(ctx)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Sandstorm / Snow defense boosts, checked end to end through calculate()
+// against a live @smogon/calc 0.12.0 run via src/oracle/smogon-adapter.ts.
+// Every expected roll array comes from the oracle; nothing is hard-coded from
+// our own output.
+// ---------------------------------------------------------------------------
+
+describe('Sand SpD / Snow Def boost vs @smogon/calc (full roll arrays)', () => {
+  const spToEv = (sp: number): number => (sp === 0 ? 0 : 8 * sp - 4);
+
+  interface DexMonOptions {
+    ability?: string;
+    item?: string;
+    /** Stat Points (converted with spToEv; valid EVs in Gen 9 too). */
+    sp?: Partial<StatTable>;
+    boosts?: Partial<Pokemon['statBoosts']>;
+    teraType?: TypeName;
+  }
+
+  // Base stats and types come from @smogon/calc's own dex so both calculators
+  // start from identical data. 'Pressure' is inert in both calculators.
+  function dexMon(game: OracleGame, species: string, opts: DexMonOptions = {}): Pokemon {
+    const dex = smogonGeneration(game).species.get(toID(species));
+    if (!dex) throw new Error(`${species} missing from @smogon/calc ${game} dex`);
+    const sp = stats(opts.sp ?? {});
+    return mon(dex.name, {
+      types: [...dex.types] as TypeName[],
+      ...(opts.teraType !== undefined ? { teraType: opts.teraType } : {}),
+      isTerastallized: opts.teraType !== undefined,
+      baseStats: { ...dex.baseStats },
+      ivs: stats({ hp: 31, atk: 31, def: 31, spa: 31, spd: 31, spe: 31 }),
+      evs: stats({
+        hp: spToEv(sp.hp), atk: spToEv(sp.atk), def: spToEv(sp.def),
+        spa: spToEv(sp.spa), spd: spToEv(sp.spd), spe: spToEv(sp.spe),
+      }),
+      ability: opts.ability ?? 'Pressure',
+      item: opts.item ?? null,
+      weightKg: dex.weightkg,
+      statBoosts: { atk: 0, def: 0, spa: 0, spd: 0, spe: 0, ...opts.boosts },
+    });
+  }
+
+  const THUNDERBOLT = move('Thunderbolt');
+  const EARTHQUAKE = move('Earthquake');
+
+  interface WeatherCase {
+    name: string;
+    attacker: [string, DexMonOptions?];
+    defender: [string, DexMonOptions?];
+    move: Move;
+    field?: Partial<FieldState>;
+    isCritical?: boolean;
+    /**
+     * Default: both. Gen 9 only for Tera and the Ruin abilities (champions.js
+     * has no Ruin handling, so the oracle ignores those flags there);
+     * Champions only for Mega Sol.
+     */
+    games?: OracleGame[];
+  }
+
+  function buildCtx(game: OracleGame, c: WeatherCase, weatherOverride?: FieldState['weather']): DamageContext {
+    const base = context({ move: 'Psychic', field: c.field });
+    return {
+      ...base,
+      attacker: dexMon(game, c.attacker[0], c.attacker[1]),
+      defender: dexMon(game, c.defender[0], c.defender[1]),
+      move: c.move,
+      field: weatherOverride === undefined ? base.field : { ...base.field, weather: weatherOverride },
+      isCritical: c.isCritical ?? false,
+    };
+  }
+
+  function oracleRolls(game: OracleGame, ctx: DamageContext): number[] {
+    const { damage } = smogonCalculate(
+      smogonGeneration(game),
+      toSmogonPokemon(game, ctx.attacker),
+      toSmogonPokemon(game, ctx.defender),
+      toSmogonMove(game, ctx.move, { isCrit: ctx.isCritical }),
+      toSmogonField(ctx.field),
+    );
+    return typeof damage === 'number' ? new Array<number>(16).fill(damage) : damage.flat();
+  }
+
+  const BULKY_SPD: DexMonOptions = { sp: { hp: 32, spd: 32 } };
+  const BULKY_DEF: DexMonOptions = { sp: { hp: 32, def: 32 } };
+  const ALAKAZAM: [string, DexMonOptions] = ['Alakazam', { sp: { spa: 32 } }];
+  const GARCHOMP: [string, DexMonOptions] = ['Garchomp', { sp: { atk: 32 } }];
+
+  // Cases where the reference applies the boost. Each is also checked to
+  // differ from the same calculation without weather, so the comparison
+  // cannot pass vacuously.
+  const boosted: WeatherCase[] = [
+    { name: 'Sand boosts Rock SpD vs special', attacker: ALAKAZAM, defender: ['Tyranitar', BULKY_SPD], move: THUNDERBOLT, field: { weather: 'sand' } },
+    { name: 'Sand boost with 0 SP defender', attacker: ALAKAZAM, defender: ['Tyranitar'], move: THUNDERBOLT, field: { weather: 'sand' } },
+    { name: 'Sand boost in Doubles', attacker: ALAKAZAM, defender: ['Tyranitar', BULKY_SPD], move: THUNDERBOLT, field: { weather: 'sand', isDoubles: true } },
+    { name: 'Snow boosts Ice Def vs physical', attacker: GARCHOMP, defender: ['Glaceon', BULKY_DEF], move: EARTHQUAKE, field: { weather: 'snow' } },
+    { name: 'Snow boosts dual-type Ice Def', attacker: GARCHOMP, defender: ['Abomasnow', BULKY_DEF], move: EARTHQUAKE, field: { weather: 'snow' } },
+    { name: 'Sand boost still applies on a crit', attacker: ALAKAZAM, defender: ['Tyranitar', BULKY_SPD], move: THUNDERBOLT, field: { weather: 'sand' }, isCritical: true },
+    {
+      name: 'Sand boost stacks on +1 SpD',
+      attacker: ALAKAZAM, defender: ['Tyranitar', { ...BULKY_SPD, boosts: { spd: 1 } }], move: THUNDERBOLT, field: { weather: 'sand' },
+    },
+    {
+      name: 'Snow boost stacks on -1 Def',
+      attacker: GARCHOMP, defender: ['Glaceon', { ...BULKY_DEF, boosts: { def: -1 } }], move: EARTHQUAKE, field: { weather: 'snow' },
+    },
+    {
+      name: 'Sand boost applies before Beads of Ruin',
+      attacker: ALAKAZAM, defender: ['Tyranitar', BULKY_SPD], move: THUNDERBOLT, field: { weather: 'sand', isBeadsOfRuin: true },
+      games: ['gen9'],
+    },
+    {
+      name: 'Snow boost applies before Sword of Ruin',
+      attacker: GARCHOMP, defender: ['Glaceon', BULKY_DEF], move: EARTHQUAKE, field: { weather: 'snow', isSwordOfRuin: true },
+      games: ['gen9'],
+    },
+    {
+      name: 'Utility Umbrella does not block the Sand boost',
+      attacker: ALAKAZAM, defender: ['Tyranitar', { ...BULKY_SPD, item: 'Utility Umbrella' }], move: THUNDERBOLT, field: { weather: 'sand' },
+    },
+    {
+      name: 'Tera Rock gains the Sand boost',
+      attacker: ALAKAZAM, defender: ['Garchomp', { ...BULKY_SPD, teraType: 'Rock' }], move: THUNDERBOLT, field: { weather: 'sand' },
+      games: ['gen9'],
+    },
+  ];
+
+  // Cases where the reference does not apply the boost.
+  const unboosted: WeatherCase[] = [
+    { name: 'Sand does not boost Rock Def vs physical', attacker: GARCHOMP, defender: ['Tyranitar', BULKY_DEF], move: EARTHQUAKE, field: { weather: 'sand' } },
+    { name: 'Sand does not boost non-Rock SpD', attacker: ALAKAZAM, defender: ['Garchomp', BULKY_SPD], move: THUNDERBOLT, field: { weather: 'sand' } },
+    { name: 'Snow does not boost Ice SpD vs special', attacker: ALAKAZAM, defender: ['Glaceon', BULKY_SPD], move: THUNDERBOLT, field: { weather: 'snow' } },
+    { name: 'Snow does not boost Rock', attacker: ALAKAZAM, defender: ['Tyranitar', BULKY_SPD], move: THUNDERBOLT, field: { weather: 'snow' } },
+    { name: 'Sun does not boost Rock SpD', attacker: ALAKAZAM, defender: ['Tyranitar', BULKY_SPD], move: THUNDERBOLT, field: { weather: 'sun' } },
+    {
+      name: 'attacker Cloud Nine clears the Sand boost',
+      attacker: ['Alakazam', { sp: { spa: 32 }, ability: 'Cloud Nine' }], defender: ['Tyranitar', BULKY_SPD], move: THUNDERBOLT, field: { weather: 'sand' },
+    },
+    {
+      name: 'defender Air Lock clears the Snow boost',
+      attacker: GARCHOMP, defender: ['Glaceon', { ...BULKY_DEF, ability: 'Air Lock' }], move: EARTHQUAKE, field: { weather: 'snow' },
+    },
+    {
+      name: 'Tera Normal Tyranitar loses the Sand boost',
+      attacker: ALAKAZAM, defender: ['Tyranitar', { ...BULKY_SPD, teraType: 'Normal' }], move: THUNDERBOLT, field: { weather: 'sand' },
+      games: ['gen9'],
+    },
+    {
+      name: 'Mega Sol attacker ignores the Sand boost',
+      attacker: ['Meganium-Mega', { sp: { spa: 32 }, ability: 'Mega Sol' }], defender: ['Tyranitar', BULKY_SPD], move: THUNDERBOLT, field: { weather: 'sand' },
+      games: ['champions'],
+    },
+  ];
+
+  const expand = (cases: WeatherCase[]): [string, OracleGame, WeatherCase][] =>
+    cases.flatMap((c) => (c.games ?? ['champions', 'gen9']).map((g): [string, OracleGame, WeatherCase] => [c.name, g, c]));
+
+  it.each(expand(boosted))('%s (%s)', (_name, game, c) => {
+    const ctx = buildCtx(game, c);
+    const expected = oracleRolls(game, ctx);
+    expect(expected).not.toEqual(oracleRolls(game, buildCtx(game, c, 'none')));
+    expect(WEATHER_DEFENSE_MODIFIER.applies(ctx)).toBe(true);
+    expect(calculate(ctx).rolls).toEqual(expected);
+  });
+
+  it.each(expand(unboosted))('%s (%s)', (_name, game, c) => {
+    const ctx = buildCtx(game, c);
+    expect(WEATHER_DEFENSE_MODIFIER.applies(ctx)).toBe(false);
+    expect(calculate(ctx).rolls).toEqual(oracleRolls(game, ctx));
+  });
+
+  it('rounds like pokeRound((stat * 3) / 2): 101 -> 151, 102 -> 153', () => {
+    // 151.5 rounds down on an exact .5 (util.js pokeRound).
+    const ctx = context({ move: 'Psychic', field: { weather: 'sand' }, defender: { types: ['Rock'] } });
+    expect(WEATHER_DEFENSE_MODIFIER.apply(101, ctx)).toBe(151);
+    expect(WEATHER_DEFENSE_MODIFIER.apply(102, ctx)).toBe(153);
+  });
+
+  it('runs before Sword / Beads of Ruin in the defense-stat chain', () => {
+    const [first] = sortModifiers(DEFENSE_STAT_FIELD_MODIFIERS);
+    expect(first).toBe(WEATHER_DEFENSE_MODIFIER);
   });
 });

@@ -16,6 +16,7 @@ import { getDefensiveTypes } from '../type-chart';
  *   weather   damage chain, MODIFIER_ORDER.weather (200)   WEATHER_MODIFIER
  *   screens   damage chain, MODIFIER_ORDER.screens (800)   SCREENS_MODIFIER
  *   terrain   base-power chain                            TERRAIN_MODIFIER
+ *   Sand SpD / Snow Def boost  defense-stat chain         WEATHER_DEFENSE_MODIFIER
  *   Tablets / Vessel of Ruin   attack-stat chain          ATTACK_STAT_FIELD_MODIFIERS
  *   Sword / Beads of Ruin      defense-stat chain         DEFENSE_STAT_FIELD_MODIFIERS
  *
@@ -263,6 +264,51 @@ export const SCREENS_MODIFIER: Modifier = modifier(
 );
 
 // ---------------------------------------------------------------------------
+// Sandstorm / Snow defense boosts (defense-stat chain)
+// ---------------------------------------------------------------------------
+
+/**
+ * 1.5x. gen789.js calculateDefenseSMSSSV: `defense = pokeRound((defense * 3) / 2)`.
+ * Expressed as 6144/4096, which rounds identically.
+ */
+export const WEATHER_DEFENSE_BOOST = 6144;
+
+/**
+ * gen789.js calculateDefenseSMSSSV, and calculateDefenseChampions in
+ * champions.js:
+ *   - Sand + Rock-type defender + special move: SpD 1.5x.
+ *   - Snow + Ice-type defender + physical move: Def 1.5x.
+ *   - Applied to the boosted stat directly, BEFORE the dfMods chain (so
+ *     before the Ruin abilities), and not skipped on a critical hit.
+ *   - Air Lock / Cloud Nine clear it (util.js checkAirLock); Utility Umbrella
+ *     does not.
+ *   - champions.js only: skipped when the attacker has Mega Sol. No Gen 9
+ *     Pokemon has that ability, so the check is inert there.
+ * The type check uses the Tera type while Terastallized, like their hasType.
+ * Like the Ruin abilities, "physical" keys off the move's category only.
+ */
+export function weatherDefenseMultiplier(ctx: DamageContext): number {
+  if (hasAbility(ctx.attacker, 'Mega Sol')) return NEUTRAL;
+  const weather = effectiveWeather(ctx);
+  const types = getDefensiveTypes(ctx.defender);
+  const { category } = ctx.move;
+  if (weather === 'sand' && types.includes('Rock') && category === 'Special') return WEATHER_DEFENSE_BOOST;
+  if (weather === 'snow' && types.includes('Ice') && category === 'Physical') return WEATHER_DEFENSE_BOOST;
+  return NEUTRAL;
+}
+
+/**
+ * Defense-stat modifier: apply() takes and returns the defender's Def / SpD.
+ * Order 0 puts it ahead of Sword / Beads of Ruin, matching @smogon/calc.
+ */
+export const WEATHER_DEFENSE_MODIFIER: Modifier = modifier(
+  'weatherDefense',
+  0,
+  weatherDefenseMultiplier,
+  true,
+);
+
+// ---------------------------------------------------------------------------
 // Ruin abilities (stat chains)
 // ---------------------------------------------------------------------------
 
@@ -331,6 +377,7 @@ export const ATTACK_STAT_FIELD_MODIFIERS: readonly Modifier[] = [
 ];
 
 export const DEFENSE_STAT_FIELD_MODIFIERS: readonly Modifier[] = [
+  WEATHER_DEFENSE_MODIFIER,
   SWORD_OF_RUIN_MODIFIER,
   BEADS_OF_RUIN_MODIFIER,
 ];
