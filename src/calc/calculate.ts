@@ -1,6 +1,7 @@
 import type { DamageContext, DamageResult, Modifier, Pokemon, StatName, StatTable } from '../types';
 import { baseDamage, RANDOM_ROLL_CEILING, RANDOM_ROLL_FLOOR } from './damage';
 import { runPipeline, runPostRoll, runPreRoll, sortModifiers } from './modifier-pipeline';
+import { defensiveStat, hitsPhysicalDefense, offensiveStat } from './modifiers/alt-stats';
 import { CORE_MODIFIERS } from './modifiers/core';
 import {
   ATTACK_STAT_FIELD_MODIFIERS,
@@ -26,8 +27,11 @@ import { getDefensiveTypes, getTypeEffectiveness } from './type-chart';
  *   3. Raw stats from calculateStats. Wonder Room swaps raw Def and SpD
  *      (util.js checkRawStatChanges); stat stages still follow the stat name,
  *      so a Def boost applies to the swapped-in SpD value.
- *   4. Stat stages (util.js getModifiedStat). A critical hit ignores the
- *      attacker's negative stage and the defender's positive stage.
+ *   4. modifiers/alt-stats.ts picks the attacking / defending stat (Foul
+ *      Play, Body Press, Psyshock, Psystrike and Secret Sword override the
+ *      category). Stat stages (util.js getModifiedStat) follow the picked
+ *      stat. A critical hit ignores a negative offensive stage and a positive
+ *      defensive stage.
  *   5. Ruin abilities on the attacking / defending stat.
  *   6. Base damage from damage.ts, then the damage chain in MODIFIER_ORDER:
  *      spread, weather, crit | random roll | STAB, type, burn, screens.
@@ -43,8 +47,8 @@ import { getDefensiveTypes, getTypeEffectiveness } from './type-chart';
  *
  * NOT HANDLED: abilities and items that change stats, power or damage
  * (Unaware, Hustle, Choice items, Life Orb, ...), Sand's SpD boost for Rock
- * types and Snow's Def boost for Ice types, Foul Play / Body Press / Psyshock
- * stat overrides, variable-power moves (basePower is used as given), and
+ * types and Snow's Def boost for Ice types, other stat-swapping moves (Shell
+ * Side Arm, Photon Geyser, Tera Blast), variable-power moves (basePower is used as given), and
  * multi-hit moves (rolls are for a single hit).
  */
 
@@ -55,8 +59,6 @@ export const DAMAGE_CHAIN: readonly Modifier[] = sortModifiers([
   ...CORE_MODIFIERS,
   ...FIELD_DAMAGE_MODIFIERS,
 ]);
-
-type BoostableStat = Exclude<StatName, 'hp'>;
 
 /** util.js getModifiedStat (Gen 3+): floor(stat * max(2, 2 + s) / max(2, 2 - s)). */
 function applyStage(stat: number, stage: number): number {
@@ -69,20 +71,37 @@ function rawStats(pokemon: Pokemon, isWonderRoom: boolean): StatTable {
   return isWonderRoom ? { ...stats, def: stats.spd, spd: stats.def } : stats;
 }
 
+/**
+ * Foul Play reads the defender's Atk and Atk stages; Body Press reads the
+ * attacker's Def and Def stages (modifiers/alt-stats.ts). The Ruin chain
+ * still keys off the move's category, as Showdown and @smogon/calc do.
+ */
 function attackingStat(ctx: DamageContext): number {
-  const stat: BoostableStat = ctx.move.category === 'Special' ? 'spa' : 'atk';
-  const raw = rawStats(ctx.attacker, ctx.field.isWonderRoom)[stat];
-  const stage = ctx.attacker.statBoosts[stat];
+  const { source, stat } = offensiveStat(ctx.move);
+  const pokemon = source === 'defender' ? ctx.defender : ctx.attacker;
+  const raw = rawStats(pokemon, ctx.field.isWonderRoom)[stat];
+  const stage = pokemon.statBoosts[stat];
   const boosted = ctx.isCritical && stage < 0 ? raw : applyStage(raw, stage);
   return Math.max(1, runPipeline(boosted, ctx, ATTACK_STAT_FIELD_MODIFIERS));
 }
 
+/**
+ * Psyshock, Psystrike and Secret Sword hit Def. The defense-stat Ruin chain
+ * in field.ts picks Sword vs Beads of Ruin from the move's category, so it is
+ * handed a view of the move as Physical whenever Def is the stat hit,
+ * matching gen789.js calculateDfModsSMSSSV's `hitsPhysical`. Everything
+ * else (screens included) still sees the real category.
+ */
 function defendingStat(ctx: DamageContext): number {
-  const stat: BoostableStat = ctx.move.category === 'Special' ? 'spd' : 'def';
+  const stat = defensiveStat(ctx.move);
   const raw = rawStats(ctx.defender, ctx.field.isWonderRoom)[stat];
   const stage = ctx.defender.statBoosts[stat];
   const boosted = ctx.isCritical && stage > 0 ? raw : applyStage(raw, stage);
-  return Math.max(1, runPipeline(boosted, ctx, DEFENSE_STAT_FIELD_MODIFIERS));
+  const chainCtx: DamageContext =
+    hitsPhysicalDefense(ctx.move) && ctx.move.category !== 'Physical'
+      ? { ...ctx, move: { ...ctx.move, category: 'Physical' } }
+      : ctx;
+  return Math.max(1, runPipeline(boosted, chainCtx, DEFENSE_STAT_FIELD_MODIFIERS));
 }
 
 function dealsNoDamage(ctx: DamageContext): boolean {
