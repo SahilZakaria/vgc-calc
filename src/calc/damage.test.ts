@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calculateBaseDamage } from './damage';
+import { baseDamage, calculateBaseDamage, RANDOM_ROLL_CEILING, RANDOM_ROLL_FLOOR } from './damage';
 
 // Reference rolls come from @smogon/calc 0.12.0 (Gen 9, Singles, no crit).
 // Each scenario is chosen so no modifiers apply: no STAB, neutral type
@@ -36,5 +36,23 @@ describe('calculateBaseDamage', () => {
 
   it('always returns 16 rolls', () => {
     expect(calculateBaseDamage(50, 100, 100, 80)).toHaveLength(16);
+  });
+});
+
+// The base damage is the 100% roll, so these are the last values of the
+// @smogon/calc 0.12.0 reference rolls above.
+describe('baseDamage', () => {
+  it('matches the 100% roll of each reference scenario', () => {
+    expect(baseDamage(50, 200, 134, 85)).toBe(57);
+    expect(baseDamage(50, 187, 122, 90)).toBe(62);
+    expect(baseDamage(100, 403, 130, 100)).toBe(262);
+    expect(baseDamage(5, 12, 10, 40)).toBe(5);
+  });
+});
+
+describe('random roll range', () => {
+  it('spans 85% to 100%', () => {
+    expect(RANDOM_ROLL_FLOOR).toBe(85);
+    expect(RANDOM_ROLL_CEILING).toBe(100);
   });
 });

@@ -1,5 +1,5 @@
 import type { DamageContext, DamageResult, Modifier, Pokemon, StatName, StatTable } from '../types';
-import { calculateBaseDamage } from './damage';
+import { baseDamage, RANDOM_ROLL_CEILING, RANDOM_ROLL_FLOOR } from './damage';
 import { runPipeline, runPostRoll, runPreRoll, sortModifiers } from './modifier-pipeline';
 import { CORE_MODIFIERS } from './modifiers/core';
 import {
@@ -38,8 +38,8 @@ import { getDefensiveTypes, getTypeEffectiveness } from './type-chart';
  * calculateBaseDamage applies the random roll to the unmodified base damage,
  * but the roll sits between crit and STAB in the chain (RANDOM_ROLL_ORDER).
  * Rolling first and then applying spread / weather / crit rounds differently
- * and gives wrong rolls, so only its 100% roll (which equals the base damage
- * exactly) is used, and the roll is applied after runPreRoll.
+ * and gives wrong rolls, so the unrolled baseDamage is used instead and the
+ * roll is applied after runPreRoll.
  *
  * NOT HANDLED: abilities and items that change stats, power or damage
  * (Unaware, Hustle, Choice items, Life Orb, ...), Sand's SpD boost for Rock
@@ -48,12 +48,7 @@ import { getDefensiveTypes, getTypeEffectiveness } from './type-chart';
  * multi-hit moves (rolls are for a single hit).
  */
 
-/**
- * Lowest random roll, in percent. The damage formula uses 85..100. Kept as a
- * named constant because Champions briefly shipped without the 85% floor.
- */
-export const RANDOM_ROLL_FLOOR = 85;
-const RANDOM_ROLL_CEILING = 100;
+export { RANDOM_ROLL_FLOOR };
 
 /** The damage-chain modifiers, sorted into their documented order. */
 export const DAMAGE_CHAIN: readonly Modifier[] = sortModifiers([
@@ -101,15 +96,8 @@ function dealsNoDamage(ctx: DamageContext): boolean {
 
 function computeRolls(ctx: DamageContext): number[] {
   const basePower = runPipeline(ctx.move.basePower, ctx, [TERRAIN_MODIFIER]);
-  const unrolled = calculateBaseDamage(
-    ctx.attacker.level,
-    attackingStat(ctx),
-    defendingStat(ctx),
-    basePower,
-  );
-  // Index 15 is the 100% roll, i.e. the base damage itself.
-  const baseDamage = unrolled[unrolled.length - 1] ?? 0;
-  const preRoll = runPreRoll(baseDamage, ctx, DAMAGE_CHAIN);
+  const base = baseDamage(ctx.attacker.level, attackingStat(ctx), defendingStat(ctx), basePower);
+  const preRoll = runPreRoll(base, ctx, DAMAGE_CHAIN);
 
   const rolls: number[] = [];
   for (let r = RANDOM_ROLL_FLOOR; r <= RANDOM_ROLL_CEILING; r++) {
