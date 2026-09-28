@@ -177,12 +177,20 @@ function toSmogonSide(side: SideState): State.Side {
     isReflect: side.reflect,
     isLightScreen: side.lightScreen,
     isAuroraVeil: side.auroraVeil,
+    isTailwind: side.tailwind,
+    isHelpingHand: side.helpingHand,
+    isFriendGuard: side.friendGuard,
+    isBattery: side.battery,
+    isPowerSpot: side.powerSpot,
+    isSteelySpirit: side.steelySpirit,
+    isSR: side.stealthRock,
+    spikes: side.spikes,
   };
 }
 
-// Only weather, terrain, format, Gravity, Wonder Room and screens are mapped.
-// The newer SideState flags (Tailwind, Helping Hand, hazards, ...) and the
-// Magic Room / Ruin field flags are not forwarded yet.
+// Every FieldState and SideState flag has a direct State.Field / State.Side
+// counterpart. Their Ruin booleans mean "active on the field from a Pokemon
+// other than the attacker/defender", the same as ours.
 export function toSmogonField(field: FieldState): SmogonField {
   return new SmogonField({
     gameType: field.isDoubles ? 'Doubles' : 'Singles',
@@ -190,6 +198,11 @@ export function toSmogonField(field: FieldState): SmogonField {
     terrain: TERRAIN[field.terrain],
     isGravity: field.isGravity,
     isWonderRoom: field.isWonderRoom,
+    isMagicRoom: field.isMagicRoom,
+    isBeadsOfRuin: field.isBeadsOfRuin,
+    isSwordOfRuin: field.isSwordOfRuin,
+    isTabletsOfRuin: field.isTabletsOfRuin,
+    isVesselOfRuin: field.isVesselOfRuin,
     attackerSide: toSmogonSide(field.attackerSide),
     defenderSide: toSmogonSide(field.defenderSide),
   });

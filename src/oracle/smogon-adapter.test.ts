@@ -1,4 +1,4 @@
-import { toID } from '@smogon/calc';
+import { toID, type State } from '@smogon/calc';
 import { describe, expect, it } from 'vitest';
 import { calculateStats } from '../calc/stats';
 import type { FieldState, Move, Pokemon, SideState, StatTable, TypeName } from '../types';
@@ -287,5 +287,57 @@ describe('toSmogonField', () => {
     expect(theirs.gameType).toBe('Singles');
     expect(theirs.weather).toBeUndefined();
     expect(theirs.terrain).toBeUndefined();
+  });
+
+  type BooleanSideFlag = { [K in keyof SideState]: SideState[K] extends boolean ? K : never }[keyof SideState];
+  type TheirBooleanSideFlag = Exclude<keyof State.Side, 'spikes' | 'isSwitching'>;
+  const sideFlags: Array<[BooleanSideFlag, TheirBooleanSideFlag]> = [
+    ['reflect', 'isReflect'],
+    ['lightScreen', 'isLightScreen'],
+    ['auroraVeil', 'isAuroraVeil'],
+    ['tailwind', 'isTailwind'],
+    ['helpingHand', 'isHelpingHand'],
+    ['friendGuard', 'isFriendGuard'],
+    ['battery', 'isBattery'],
+    ['powerSpot', 'isPowerSpot'],
+    ['steelySpirit', 'isSteelySpirit'],
+    ['stealthRock', 'isSR'],
+  ];
+  const theirSideFlags = sideFlags.map(([, theirs]) => theirs);
+
+  describe.each(sideFlags)('side flag %s', (ours, theirs) => {
+    it.each(['attackerSide', 'defenderSide'] as const)(`arrives as ${theirs} on the %s only`, (sideKey) => {
+      const otherKey = sideKey === 'attackerSide' ? 'defenderSide' : 'attackerSide';
+      const result = toSmogonField({
+        ...field,
+        attackerSide: noScreens,
+        defenderSide: noScreens,
+        [sideKey]: { ...noScreens, [ours]: true },
+      });
+      for (const flag of theirSideFlags) {
+        expect(result[sideKey][flag], `${sideKey}.${flag}`).toBe(flag === theirs);
+        expect(result[otherKey][flag], `${otherKey}.${flag}`).toBe(false);
+      }
+    });
+  });
+
+  it.each([1, 2, 3])('forwards %i layers of Spikes to the right side', (layers) => {
+    const onDefender = toSmogonField({ ...field, defenderSide: { ...noScreens, spikes: layers } });
+    expect(onDefender.defenderSide.spikes).toBe(layers);
+    expect(onDefender.attackerSide.spikes).toBe(0);
+    const onAttacker = toSmogonField({ ...field, attackerSide: { ...noScreens, spikes: layers } });
+    expect(onAttacker.attackerSide.spikes).toBe(layers);
+    expect(onAttacker.defenderSide.spikes).toBe(0);
+  });
+
+  type FieldFlag = 'isMagicRoom' | 'isBeadsOfRuin' | 'isSwordOfRuin' | 'isTabletsOfRuin' | 'isVesselOfRuin';
+  const fieldFlags: FieldFlag[] = ['isMagicRoom', 'isBeadsOfRuin', 'isSwordOfRuin', 'isTabletsOfRuin', 'isVesselOfRuin'];
+
+  it.each(fieldFlags)('forwards %s without setting the other field flags', (flag) => {
+    const result = toSmogonField({ ...field, [flag]: true });
+    for (const other of fieldFlags) expect(result[other], other).toBe(other === flag);
+    // Unrelated flags set in the base fixture are left alone.
+    expect(result.isGravity).toBe(true);
+    expect(result.isWonderRoom).toBe(false);
   });
 });
