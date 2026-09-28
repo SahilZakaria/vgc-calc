@@ -47,3 +47,13 @@ ONLY where this section says the two match.
 ## Verification
 - `npm test` and `npx tsc --noEmit` must both pass before you report done.
 - Report honestly. If something is unverified or you guessed, say so.
+
+## Working in a git worktree
+Background sessions run in a worktree with no node_modules. To run tests,
+symlink the main checkout's copy:
+
+  ln -s /home/aunik/projects/vgc-calc/node_modules node_modules
+
+Do not run npm install in a worktree, it will churn package-lock.json.
+Leave the symlink in place when you finish. Never run a removal command on
+anything named node_modules.
