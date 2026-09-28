@@ -14,7 +14,11 @@ import {
 } from './modifier-pipeline';
 
 const stats = (n: number): StatTable => ({ hp: n, atk: n, def: n, spa: n, spd: n, spe: n });
-const noScreens: SideState = { reflect: false, lightScreen: false, auroraVeil: false };
+const noScreens: SideState = {
+  reflect: false, lightScreen: false, auroraVeil: false,
+  tailwind: false, helpingHand: false, friendGuard: false, battery: false,
+  powerSpot: false, steelySpirit: false, stealthRock: false, spikes: 0,
+};
 
 function mon(species: string): Pokemon {
   return {
@@ -59,10 +63,13 @@ const ctx: DamageContext = {
     isDoubles: true,
     isGravity: false,
     isWonderRoom: false,
+    isMagicRoom: false,
+    isBeadsOfRuin: false,
+    isSwordOfRuin: false,
+    isTabletsOfRuin: false,
+    isVesselOfRuin: false,
     attackerSide: noScreens,
     defenderSide: noScreens,
-    attackerAlly: null,
-    defenderAlly: null,
   },
   isCritical: false,
 };

@@ -159,6 +159,9 @@ const WEATHER: Readonly<Record<FieldState['weather'], State.Field['weather']>> =
   rain: 'Rain',
   sand: 'Sand',
   snow: 'Snow',
+  harshSun: 'Harsh Sunshine',
+  heavyRain: 'Heavy Rain',
+  strongWinds: 'Strong Winds',
 };
 
 const TERRAIN: Readonly<Record<FieldState['terrain'], State.Field['terrain']>> = {
@@ -177,9 +180,9 @@ function toSmogonSide(side: SideState): State.Side {
   };
 }
 
-// attackerAlly and defenderAlly are dropped: their Field has no ally slots,
-// only per-side flags (Helping Hand, Friend Guard, Battery, ...) that our
-// contract does not carry.
+// Only weather, terrain, format, Gravity, Wonder Room and screens are mapped.
+// The newer SideState flags (Tailwind, Helping Hand, hazards, ...) and the
+// Magic Room / Ruin field flags are not forwarded yet.
 export function toSmogonField(field: FieldState): SmogonField {
   return new SmogonField({
     gameType: field.isDoubles ? 'Doubles' : 'Singles',

@@ -1,7 +1,7 @@
 import { toID } from '@smogon/calc';
 import { describe, expect, it } from 'vitest';
 import { calculateStats } from '../calc/stats';
-import type { FieldState, Move, Pokemon, StatTable, TypeName } from '../types';
+import type { FieldState, Move, Pokemon, SideState, StatTable, TypeName } from '../types';
 import {
   evToSp,
   smogonGeneration,
@@ -250,17 +250,24 @@ describe('toSmogonMove', () => {
 });
 
 describe('toSmogonField', () => {
-  const noScreens = { reflect: false, lightScreen: false, auroraVeil: false };
+  const noScreens: SideState = {
+    reflect: false, lightScreen: false, auroraVeil: false,
+    tailwind: false, helpingHand: false, friendGuard: false, battery: false,
+    powerSpot: false, steelySpirit: false, stealthRock: false, spikes: 0,
+  };
   const field: FieldState = {
     weather: 'snow',
     terrain: 'psychic',
     isDoubles: true,
     isGravity: true,
     isWonderRoom: false,
+    isMagicRoom: false,
+    isBeadsOfRuin: false,
+    isSwordOfRuin: false,
+    isTabletsOfRuin: false,
+    isVesselOfRuin: false,
     attackerSide: noScreens,
     defenderSide: { ...noScreens, reflect: true, auroraVeil: true },
-    attackerAlly: null,
-    defenderAlly: null,
   };
 
   it('maps weather, terrain, format and screens', () => {
