@@ -67,6 +67,20 @@ export const RUIN_MULTIPLIER = 3072;
 
 const NEUTRAL = 4096;
 
+/**
+ * Which game's rules apply. Declared here because the committed src/types.ts
+ * has no Game type; it matches the `game` field the tests put on
+ * DamageContext.
+ */
+export type Game = 'champions' | 'gen9';
+
+/**
+ * A DamageContext that may say which game it belongs to. Only the Mega Sol
+ * exception to the Sand / Snow defense boost depends on it; without `game`
+ * the Gen 9 rule (boost applies) is used.
+ */
+export type GameAwareContext = DamageContext & { readonly game?: Game };
+
 // ---------------------------------------------------------------------------
 // Shared helpers
 // ---------------------------------------------------------------------------
@@ -139,23 +153,36 @@ function modifier(
  *   - Sun or Harsh Sunshine + Fire, Rain or Heavy Rain + Water: 1.5x.
  *   - Sun + Water, Rain + Fire: 0.5x (primal weathers never weaken; the
  *     opposing type is nullified instead).
+ *
+ * Mega Sol: the holder's own moves act as if in Sun whatever the weather
+ * (`isMegaSol` in gen789.js calculateBaseDamageSMSSSV and champions.js
+ * calculateBaseDamageChampions): Fire and Hydro Steam 1.5x, Water 0.5x, and
+ * Rain / Heavy Rain no longer boost its Water moves. It affects only moves
+ * the holder uses, so only the attacker is checked. Air Lock / Cloud Nine
+ * clear the field weather but not Mega Sol. Primal nullification is checked
+ * on the field weather alone, so Mega Sol does not change it.
  */
 export function weatherMultiplier(ctx: DamageContext): number {
   const weather = effectiveWeather(ctx);
   const type = ctx.move.type;
+  const megaSol = hasAbility(ctx.attacker, 'Mega Sol');
 
   if ((weather === 'harshSun' && type === 'Water') || (weather === 'heavyRain' && type === 'Fire')) {
     return PRIMAL_NULLIFY;
   }
-  if (weather === 'sun' && ctx.move.name === 'Hydro Steam' && !hasItem(ctx.attacker, 'Utility Umbrella')) {
+  if (
+    (weather === 'sun' || megaSol) &&
+    ctx.move.name === 'Hydro Steam' &&
+    !hasItem(ctx.attacker, 'Utility Umbrella')
+  ) {
     return WEATHER_BOOST;
   }
   if (hasItem(ctx.defender, 'Utility Umbrella')) return NEUTRAL;
 
-  const sunny = weather === 'sun' || weather === 'harshSun';
-  const rainy = weather === 'rain' || weather === 'heavyRain';
+  const sunny = weather === 'sun' || weather === 'harshSun' || megaSol;
+  const rainy = (weather === 'rain' || weather === 'heavyRain') && !megaSol;
   if ((sunny && type === 'Fire') || (rainy && type === 'Water')) return WEATHER_BOOST;
-  if ((weather === 'sun' && type === 'Water') || (weather === 'rain' && type === 'Fire')) {
+  if (((weather === 'sun' || megaSol) && type === 'Water') || (weather === 'rain' && type === 'Fire')) {
     return WEATHER_WEAKEN;
   }
   return NEUTRAL;
@@ -282,13 +309,14 @@ export const WEATHER_DEFENSE_BOOST = 6144;
  *     before the Ruin abilities), and not skipped on a critical hit.
  *   - Air Lock / Cloud Nine clear it (util.js checkAirLock); Utility Umbrella
  *     does not.
- *   - champions.js only: skipped when the attacker has Mega Sol. No Gen 9
- *     Pokemon has that ability, so the check is inert there.
+ *   - champions.js only: skipped when the attacker has Mega Sol. gen789.js
+ *     has no such check, and Gen 9 data does have a Mega Sol Pokemon
+ *     (Meganium-Mega), so in Gen 9 the boost still applies against it.
  * The type check uses the Tera type while Terastallized, like their hasType.
  * Like the Ruin abilities, "physical" keys off the move's category only.
  */
-export function weatherDefenseMultiplier(ctx: DamageContext): number {
-  if (hasAbility(ctx.attacker, 'Mega Sol')) return NEUTRAL;
+export function weatherDefenseMultiplier(ctx: GameAwareContext): number {
+  if (ctx.game === 'champions' && hasAbility(ctx.attacker, 'Mega Sol')) return NEUTRAL;
   const weather = effectiveWeather(ctx);
   const types = getDefensiveTypes(ctx.defender);
   const { category } = ctx.move;

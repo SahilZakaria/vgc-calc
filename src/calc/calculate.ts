@@ -11,7 +11,7 @@ import {
   resolveAbilitiesAndItems,
   type ChainModifier,
 } from './modifiers/abilities-items';
-import { defensiveStat, hitsPhysicalDefense, offensiveStat } from './modifiers/alt-stats';
+import { defensiveStat, hitsPhysicalDefense, ignoresDefensiveStages, offensiveStat } from './modifiers/alt-stats';
 import { CORE_MODIFIERS } from './modifiers/core';
 import {
   ATTACK_STAT_FIELD_MODIFIERS,
@@ -46,7 +46,8 @@ import { getDefensiveTypes, getTypeEffectiveness } from './type-chart';
  *      Play, Body Press, Psyshock, Psystrike and Secret Sword override the
  *      category). Stat stages (util.js getModifiedStat) follow the picked
  *      stat. A critical hit ignores a negative offensive stage and a positive
- *      defensive stage.
+ *      defensive stage; Chip Away, Darkest Lariat, Sacred Sword and Nihil
+ *      Light ignore every defensive stage (move.ignoreDefensive).
  *   5. Sand's SpD / Snow's Def boost (its own pokeRound, before the chain),
  *      then the attack-stat and defense-stat chains.
  *   6. Base damage from damage.ts, then the damage chain in MODIFIER_ORDER:
@@ -183,7 +184,8 @@ function defendingStat(ctx: DamageContext): number {
   const stat = defensiveStat(ctx.move);
   const raw = rawStats(ctx.defender, ctx.field.isWonderRoom)[stat];
   const stage = ctx.defender.statBoosts[stat];
-  const boosted = ctx.isCritical && stage > 0 ? raw : applyStage(raw, stage);
+  const ignoreStage = ignoresDefensiveStages(ctx.move) || (ctx.isCritical && stage > 0);
+  const boosted = ignoreStage ? raw : applyStage(raw, stage);
   const chainCtx: DamageContext =
     hitsPhysicalDefense(ctx.move) && ctx.move.category !== 'Physical'
       ? { ...ctx, move: { ...ctx.move, category: 'Physical' } }

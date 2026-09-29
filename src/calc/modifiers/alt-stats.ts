@@ -76,6 +76,25 @@ export function hitsPhysicalDefense(move: Move): boolean {
   return HITS_TARGET_DEFENSE.has(move.name) || move.category === 'Physical';
 }
 
+/**
+ * Moves that ignore the target's stat stages on the stat they hit, raised or
+ * lowered. Showdown data/moves.ts `ignoreDefensive: true`; @smogon/calc
+ * 0.12.0 dist/data/moves.js flags the same moves (Nihil Light via its ZA
+ * patch), and calculateDefenseSMSSSV / calculateDefenseChampions then use
+ * the raw stat. Sand / Snow and the defense-stat chain still apply.
+ */
+const IGNORES_DEFENSIVE_STAGES: ReadonlySet<string> = new Set([
+  'Chip Away',
+  'Darkest Lariat',
+  'Sacred Sword',
+  'Nihil Light',
+]);
+
+/** True when the move ignores the target's stages on the defending stat. */
+export function ignoresDefensiveStages(move: Move): boolean {
+  return IGNORES_DEFENSIVE_STAGES.has(move.name);
+}
+
 /** The defender's stat (and its stages) the move is resolved against. */
 export function defensiveStat(move: Move): BoostableStat {
   return hitsPhysicalDefense(move) ? 'def' : 'spd';

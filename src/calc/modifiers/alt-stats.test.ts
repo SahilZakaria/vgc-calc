@@ -20,7 +20,7 @@ import type {
   TypeName,
 } from '../../types';
 import { calculate } from '../calculate';
-import { defensiveStat, hitsPhysicalDefense, offensiveStat } from './alt-stats';
+import { defensiveStat, hitsPhysicalDefense, ignoresDefensiveStages, offensiveStat } from './alt-stats';
 
 // Expected values come from @smogon/calc 0.12.0 (the oracle), run on the same
 // inputs through src/oracle/smogon-adapter.ts, and from its move data. Nothing
@@ -166,6 +166,9 @@ const PSYSTRIKE = move('Psystrike', 'Psychic', 100, 'Special', false);
 const SECRET_SWORD = move('Secret Sword', 'Fighting', 85, 'Special', false);
 const PSYCHIC = move('Psychic', 'Psychic', 90, 'Special', false);
 const CLOSE_COMBAT = move('Close Combat', 'Fighting', 120, 'Physical', true);
+const SACRED_SWORD = move('Sacred Sword', 'Fighting', 90, 'Physical', true);
+const DARKEST_LARIAT = move('Darkest Lariat', 'Dark', 85, 'Physical', true);
+const CHIP_AWAY = move('Chip Away', 'Normal', 70, 'Physical', true);
 
 // Champions sets (Stat Points; legal: <= 32 per stat, <= 66 total).
 const umbreon = (o: MonOptions = {}): Pokemon =>
@@ -230,6 +233,12 @@ describe('stat selection matches @smogon/calc move data', () => {
     expect(offensiveStat(CLOSE_COMBAT)).toEqual({ source: 'attacker', stat: 'atk' });
     expect(defensiveStat(CLOSE_COMBAT)).toBe('def');
   });
+
+  it.each(['champions', 'gen9'] as const)('ignoresDefensiveStages matches the %s ignoreDefensive flag', (game) => {
+    for (const m of smogonGeneration(game).moves) {
+      expect(ignoresDefensiveStages({ ...CLOSE_COMBAT, name: m.name }), m.name).toBe(m.ignoreDefensive === true);
+    }
+  });
 });
 
 interface Case {
@@ -283,6 +292,16 @@ const CASES: Case[] = [
   { name: 'Body Press + Tablets of Ruin (category Physical)', game: 'gen9', ctx: ctx(corviknight9(), blissey(), BODY_PRESS, field({ isTabletsOfRuin: true })) },
   { name: 'Foul Play + Tablets of Ruin', game: 'gen9', ctx: ctx(g9('Umbreon', 'Calm', table(252, 0, 4, 0, 252, 0)), chienPao(), FOUL_PLAY, field({ isTabletsOfRuin: true })) },
   { name: 'Foul Play + Sword of Ruin on the defender side', game: 'gen9', ctx: ctx(g9('Umbreon', 'Calm', table(252, 0, 4, 0, 252, 0)), blissey(), FOUL_PLAY, field({ isSwordOfRuin: true })) },
+
+  // ignoreDefensive moves: the target's Def stages, raised or lowered, are skipped.
+  { name: 'Sacred Sword ignores the target\'s +2 Def', ctx: ctx(garchomp(), corviknight({ boosts: { def: 2 } }), SACRED_SWORD, field(), false, 'champions') },
+  { name: 'Sacred Sword ignores the target\'s -2 Def', ctx: ctx(garchomp(), corviknight({ boosts: { def: -2 } }), SACRED_SWORD, field(), false, 'champions') },
+  { name: 'Darkest Lariat ignores the target\'s +6 Def', ctx: ctx(incineroar(), avalugg({ boosts: { def: 6 } }), DARKEST_LARIAT, field(), false, 'champions') },
+  { name: 'Darkest Lariat still uses the user\'s +2 Atk', ctx: ctx(incineroar({ boosts: { atk: 2 } }), avalugg({ boosts: { def: 2 } }), DARKEST_LARIAT, field(), false, 'champions') },
+  { name: 'Sacred Sword into +2 Def Avalugg in Snow keeps the Snow boost', ctx: ctx(garchomp(), avalugg({ boosts: { def: 2 } }), SACRED_SWORD, field({ weather: 'snow' }), false, 'champions') },
+  { name: 'Chip Away ignores the target\'s +2 Def', game: 'gen9', ctx: ctx(g9('Snorlax', 'Adamant', table(4, 252, 0, 0, 252, 0)), corviknight9({ boosts: { def: 2 } }), CHIP_AWAY) },
+  { name: 'Sacred Sword ignores the target\'s +1 Def in Gen 9', game: 'gen9', ctx: ctx(g9('Gallade', 'Adamant', table(4, 252, 0, 0, 0, 252)), corviknight9({ boosts: { def: 1 } }), SACRED_SWORD) },
+  { name: 'Darkest Lariat ignores the target\'s -1 Def in Gen 9', game: 'gen9', ctx: ctx(g9('Incineroar', 'Adamant', table(252, 252, 0, 0, 4, 0)), blissey({ boosts: { def: -1 } }), DARKEST_LARIAT) },
 ];
 
 describe('calculate() with stat-overriding moves matches @smogon/calc roll for roll', () => {
@@ -300,6 +319,19 @@ describe('calculate() with stat-overriding moves matches @smogon/calc roll for r
     ]) {
       expect(oracleRolls('champions', c)).not.toEqual(oracleRolls('champions', renamed(c)));
     }
+  });
+
+  it('ignoring Def stages changes the result versus an ordinary move', () => {
+    const renamed = (c: DamageContext): DamageContext => ({ ...c, move: { ...c.move, name: `Not ${c.move.name}` } });
+    const champions = [
+      ctx(garchomp(), corviknight({ boosts: { def: 2 } }), SACRED_SWORD, field(), false, 'champions'),
+      ctx(incineroar(), avalugg({ boosts: { def: 6 } }), DARKEST_LARIAT, field(), false, 'champions'),
+    ];
+    for (const c of champions) {
+      expect(oracleRolls('champions', c)).not.toEqual(oracleRolls('champions', renamed(c)));
+    }
+    const chipAway = ctx(g9('Snorlax', 'Adamant', table(4, 252, 0, 0, 252, 0)), corviknight9({ boosts: { def: 2 } }), CHIP_AWAY);
+    expect(oracleRolls('gen9', chipAway)).not.toEqual(oracleRolls('gen9', renamed(chipAway)));
   });
 });
 
