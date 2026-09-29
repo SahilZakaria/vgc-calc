@@ -24,7 +24,7 @@ import {
   weatherMultiplier,
 } from './modifiers/field';
 import { calculateStats } from './stats';
-import { getDefensiveTypes, getTypeEffectiveness } from './type-chart';
+import { getMoveEffectiveness } from './move-effectiveness';
 
 /**
  * Full damage calculation: stats -> attacking / defending stat -> base damage
@@ -202,7 +202,7 @@ function dealsNoDamage(ctx: DamageContext): boolean {
   return (
     ctx.move.category === 'Status' ||
     ctx.move.basePower <= 0 ||
-    getTypeEffectiveness(ctx.move.type, getDefensiveTypes(ctx.defender)) === 0 ||
+    getMoveEffectiveness(ctx) === 0 ||
     isImmuneByAbility(ctx) ||
     weatherMultiplier(ctx) === PRIMAL_NULLIFY
   );

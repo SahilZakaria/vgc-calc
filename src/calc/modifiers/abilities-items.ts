@@ -1,6 +1,7 @@
 import type { DamageContext, Pokemon, TypeName } from '../../types';
 import { calculateStats } from '../stats';
-import { getDefensiveTypes, getTypeEffectiveness } from '../type-chart';
+import { getMoveEffectiveness } from '../move-effectiveness';
+import { getDefensiveTypes } from '../type-chart';
 
 /**
  * Damage-affecting abilities and held items.
@@ -99,7 +100,7 @@ function hasItem(pokemon: Pokemon, item: string): boolean {
 }
 
 function effectiveness(ctx: DamageContext): number {
-  return getTypeEffectiveness(ctx.move.type, getDefensiveTypes(ctx.defender));
+  return getMoveEffectiveness(ctx);
 }
 
 function maxHp(pokemon: Pokemon): number {

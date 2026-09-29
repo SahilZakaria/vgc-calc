@@ -1,6 +1,6 @@
 import type { DamageContext, Modifier, Pokemon } from '../../types';
 import { applyChainMultiplier, MODIFIER_ORDER } from '../modifier-pipeline';
-import { getDefensiveTypes, getTypeEffectiveness } from '../type-chart';
+import { getMoveEffectiveness } from '../move-effectiveness';
 
 /**
  * Core damage-chain modifiers: spread, critical hit, STAB, type
@@ -90,9 +90,7 @@ export const typeEffectivenessModifier: Modifier = {
   order: MODIFIER_ORDER.typeEffectiveness,
   applies: () => true,
   apply: (damage, ctx) =>
-    Math.floor(
-      damage * getTypeEffectiveness(ctx.move.type, getDefensiveTypes(ctx.defender)),
-    ),
+    Math.floor(damage * getMoveEffectiveness(ctx)),
 };
 
 export const burnModifier: Modifier = {
