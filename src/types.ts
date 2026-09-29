@@ -62,6 +62,7 @@ export interface Pokemon {
 
 export type Weather = 'none' | 'sun' | 'rain' | 'sand' | 'snow' | 'harshSun' | 'heavyRain' | 'strongWinds';
 export type Terrain = 'none' | 'electric' | 'grassy' | 'misty' | 'psychic';
+export type Game = 'champions' | 'gen9';
 
 export interface SideState {
   reflect: boolean;
@@ -93,6 +94,7 @@ export interface FieldState {
 }
 
 export interface DamageContext {
+  game: Game;
   attacker: Pokemon;
   defender: Pokemon;
   move: Move;
