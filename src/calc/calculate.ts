@@ -1,4 +1,4 @@
-import type { DamageContext, DamageResult, Modifier, Pokemon, StatName, StatTable } from '../types';
+import type { DamageContext, DamageResult, FieldState, Modifier, Pokemon, StatName, StatTable, Weather } from '../types';
 import { baseDamage, RANDOM_ROLL_CEILING, RANDOM_ROLL_FLOOR } from './damage';
 import { MODIFIER_ORDER, pokeRound, runPipeline, runPostRoll, runPreRoll, sortModifiers } from './modifier-pipeline';
 import {
@@ -33,6 +33,9 @@ import { getDefensiveTypes, getTypeEffectiveness } from './type-chart';
  * FLOW (mirrors @smogon/calc 0.12.0 mechanics/gen789.js calculateSMSSSV and
  * mechanics/champions.js calculateChampions, which agree on every step here)
  * ----
+ *   -1. Champions only (applyGameRules): the Ruin flags on FieldState are
+ *      cleared and Harsh Sunshine / Heavy Rain / Strong Winds become no
+ *      weather, since no Champions Pokemon can set them.
  *   0. Items disabled by Magic Room / Klutz are removed and defender abilities
  *      ignored by Mold Breaker are suppressed (resolveAbilitiesAndItems).
  *   1. Status moves, zero base power, type immunity, immunity abilities
@@ -220,8 +223,30 @@ function computeRolls(ctx: DamageContext): number[] {
   return rolls;
 }
 
+/** Weathers only legendary Pokemon set; Champions has no legendaries. */
+const PRIMAL_WEATHERS: ReadonlySet<Weather> = new Set<Weather>(['harshSun', 'heavyRain', 'strongWinds']);
+
+/**
+ * Champions has no legendary Pokemon, so the Ruin abilities and primal
+ * weathers cannot occur there. @smogon/calc's champions.js has no Ruin code
+ * and its weather checks only match plain Sun / Rain / Sand / Snow, so a
+ * Ruin flag or a primal weather changes nothing. Gen 9 input is returned as is.
+ */
+function applyGameRules(ctx: DamageContext): DamageContext {
+  if (ctx.game !== 'champions') return ctx;
+  const field: FieldState = {
+    ...ctx.field,
+    weather: PRIMAL_WEATHERS.has(ctx.field.weather) ? 'none' : ctx.field.weather,
+    isBeadsOfRuin: false,
+    isSwordOfRuin: false,
+    isTabletsOfRuin: false,
+    isVesselOfRuin: false,
+  };
+  return { ...ctx, field };
+}
+
 export function calculate(input: DamageContext): DamageResult {
-  const ctx = resolveAbilitiesAndItems(input);
+  const ctx = resolveAbilitiesAndItems(applyGameRules(input));
   const defenderMaxHp = rawStats(ctx.defender, false).hp;
   const rolls = dealsNoDamage(ctx)
     ? new Array<number>(RANDOM_ROLL_CEILING - RANDOM_ROLL_FLOOR + 1).fill(0)

@@ -284,6 +284,37 @@ const CASES: Case[] = [
       field({ isSwordOfRuin: true }),
     ),
   },
+  {
+    name: 'Gen 9: Harsh Sunshine nullifies Water',
+    game: 'gen9',
+    ctx: ctx(
+      mon('Palafin-Hero', { game: 'gen9', nature: 'Adamant', investment: table(4, 252, 0, 0, 0, 252) }),
+      mon('Garchomp', { game: 'gen9', nature: 'Jolly', investment: table(4, 252, 0, 0, 0, 252) }),
+      WAVE_CRASH,
+      field({ weather: 'harshSun' }),
+    ),
+  },
+  {
+    name: 'Gen 9: Heavy Rain boosts Water',
+    game: 'gen9',
+    ctx: ctx(
+      mon('Palafin-Hero', { game: 'gen9', nature: 'Adamant', investment: table(4, 252, 0, 0, 0, 252) }),
+      mon('Garchomp', { game: 'gen9', nature: 'Jolly', investment: table(4, 252, 0, 0, 0, 252) }),
+      WAVE_CRASH,
+      field({ weather: 'heavyRain' }),
+    ),
+  },
+
+  // Champions: no legendaries, so Ruin flags and primal weathers do nothing.
+  { name: 'Champions: Tablets of Ruin flag ignored', ctx: ctx(garchomp(), farigiraf(), DRAGON_CLAW, field({ isTabletsOfRuin: true }), false, 'champions') },
+  { name: 'Champions: Sword of Ruin flag ignored', ctx: ctx(garchomp(), farigiraf(), DRAGON_CLAW, field({ isSwordOfRuin: true }), false, 'champions') },
+  { name: 'Champions: Vessel of Ruin flag ignored', ctx: ctx(gholdengo(), hatterene(), SHADOW_BALL, field({ isVesselOfRuin: true }), false, 'champions') },
+  { name: 'Champions: Beads of Ruin flag ignored', ctx: ctx(gholdengo(), hatterene(), SHADOW_BALL, field({ isBeadsOfRuin: true }), false, 'champions') },
+  { name: 'Champions: Harsh Sunshine does not nullify Water', ctx: ctx(palafin(), garchomp(), WAVE_CRASH, field({ weather: 'harshSun' }), false, 'champions') },
+  { name: 'Champions: Harsh Sunshine does not boost Fire', ctx: ctx(charizard(), farigiraf(), FLAMETHROWER, field({ weather: 'harshSun' }), false, 'champions') },
+  { name: 'Champions: Heavy Rain does not nullify Fire', ctx: ctx(charizard(), farigiraf(), FLAMETHROWER, field({ weather: 'heavyRain' }), false, 'champions') },
+  { name: 'Champions: Heavy Rain does not boost Water', ctx: ctx(palafin(), garchomp(), WAVE_CRASH, field({ weather: 'heavyRain' }), false, 'champions') },
+  { name: 'Champions: Strong Winds, Rock Slide into Charizard', ctx: ctx(garchomp(), charizard(), ROCK_SLIDE, field({ weather: 'strongWinds' }), false, 'champions') },
 ];
 
 describe('calculate agrees with @smogon/calc on the full roll array', () => {
