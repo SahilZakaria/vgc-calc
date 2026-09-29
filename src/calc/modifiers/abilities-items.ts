@@ -1,6 +1,6 @@
 import type { DamageContext, Pokemon, TypeName } from '../../types';
 import { calculateStats } from '../stats';
-import { getDefensiveTypes, getTypeEffectiveness } from '../type-chart';
+import { getDefensiveTypes, getMoveEffectiveness } from '../type-chart';
 
 /**
  * Damage-affecting abilities and held items.
@@ -99,7 +99,7 @@ function hasItem(pokemon: Pokemon, item: string): boolean {
 }
 
 function effectiveness(ctx: DamageContext): number {
-  return getTypeEffectiveness(ctx.move.type, getDefensiveTypes(ctx.defender));
+  return getMoveEffectiveness(ctx);
 }
 
 function maxHp(pokemon: Pokemon): number {
@@ -204,11 +204,12 @@ const TYPE_IMMUNITY_ABILITIES: Readonly<Partial<Record<TypeName, readonly string
  * calculateSMSSSV / calculateChampions return 0 damage for:
  *   Flash Fire (Fire), Water Absorb / Storm Drain (Water),
  *   Volt Absorb / Lightning Rod (Electric), Sap Sipper (Grass),
- *   Levitate (Ground, unless Gravity, Iron Ball or Thousand Arrows).
+ *   Levitate / Eelevate (Ground, unless Gravity, Iron Ball or Thousand
+ *   Arrows).
  *
- * Levitate follows gen789.js. champions.js checks only Gravity, so it would
- * still call a Levitate + Iron Ball holder immune; in-game Iron Ball grounds
- * it, which isGrounded in field.ts already assumes.
+ * Levitate and Eelevate follow gen789.js. champions.js checks only Gravity,
+ * so it would still call a Levitate + Iron Ball holder immune; in-game Iron
+ * Ball grounds it, which isGrounded in field.ts already assumes.
  */
 export function isImmuneByAbility(ctx: DamageContext): boolean {
   const { defender, move } = ctx;
@@ -216,9 +217,26 @@ export function isImmuneByAbility(ctx: DamageContext): boolean {
   if (abilities !== undefined && hasAbility(defender, ...abilities)) return true;
   return (
     move.type === 'Ground' &&
-    hasAbility(defender, 'Levitate') &&
+    hasAbility(defender, 'Levitate', 'Eelevate') &&
     !ctx.field.isGravity &&
     !hasItem(defender, 'Iron Ball') &&
+    move.name !== 'Thousand Arrows'
+  );
+}
+
+/**
+ * calculateSMSSSV / calculateChampions return 0 damage for a Ground move
+ * against an Air Balloon holder unless Gravity is up. gen789.js also exempts
+ * Thousand Arrows; champions.js has no such check, but Thousand Arrows is not
+ * in Champions. Klutz and Magic Room remove the balloon first
+ * (resolveAbilitiesAndItems).
+ */
+export function isImmuneByItem(ctx: DamageContext): boolean {
+  const { defender, move } = ctx;
+  return (
+    move.type === 'Ground' &&
+    hasItem(defender, 'Air Balloon') &&
+    !ctx.field.isGravity &&
     move.name !== 'Thousand Arrows'
   );
 }

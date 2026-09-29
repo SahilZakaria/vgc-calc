@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { Pokemon } from '../types';
-import { getDefensiveTypes, getTypeEffectiveness } from './type-chart';
+import type { DamageContext, Pokemon, TypeName } from '../types';
+import { getDefensiveTypes, getMoveEffectiveness, getTypeEffectiveness } from './type-chart';
 
 function makePokemon(overrides: Partial<Pokemon>): Pokemon {
   return {
@@ -102,5 +102,58 @@ describe('getDefensiveTypes', () => {
 
     expect(getTypeEffectiveness('Fire', getDefensiveTypes(original))).toBe(2);
     expect(getTypeEffectiveness('Fire', getDefensiveTypes(terastallized))).toBe(0.5);
+  });
+});
+
+describe('getMoveEffectiveness', () => {
+  // Rules from @smogon/calc 0.12.0: util.js getMoveEffectiveness (Gravity,
+  // per type) and the Iron Ball fallback in gen789.js calculateSMSSSV /
+  // champions.js calculateChampions (a 0x Ground matchup becomes 1x). The
+  // end-to-end damage for these cases is checked against the oracle in
+  // modifiers/abilities-items.test.ts.
+  const noSide = {
+    reflect: false, lightScreen: false, auroraVeil: false, tailwind: false, helpingHand: false,
+    friendGuard: false, battery: false, powerSpot: false, steelySpirit: false, stealthRock: false, spikes: 0,
+  };
+  function ctx(moveType: TypeName, defender: Partial<Pokemon>, isGravity = false): DamageContext {
+    return {
+      game: 'gen9',
+      attacker: makePokemon({}),
+      defender: makePokemon(defender),
+      move: {
+        name: 'Test', type: moveType, basePower: 80, variablePower: 'none', category: 'Physical',
+        target: 'single', priority: 0, hits: 1,
+        flags: { contact: false, punch: false, sound: false, slicing: false, bite: false, bullet: false, wind: false, pulse: false },
+      },
+      field: {
+        weather: 'none', terrain: 'none', isDoubles: true, isGravity, isWonderRoom: false, isMagicRoom: false,
+        isBeadsOfRuin: false, isSwordOfRuin: false, isTabletsOfRuin: false, isVesselOfRuin: false,
+        attackerSide: noSide, defenderSide: noSide,
+      },
+      isCritical: false,
+    };
+  }
+
+  it('matches the plain type chart without Gravity or Iron Ball', () => {
+    expect(getMoveEffectiveness(ctx('Ground', { types: ['Fire', 'Flying'] }))).toBe(0);
+    expect(getMoveEffectiveness(ctx('Fire', { types: ['Grass', 'Poison'] }))).toBe(2);
+  });
+
+  it('Gravity removes only the Flying immunity to Ground', () => {
+    expect(getMoveEffectiveness(ctx('Ground', { types: ['Flying'] }, true))).toBe(1);
+    expect(getMoveEffectiveness(ctx('Ground', { types: ['Fire', 'Flying'] }, true))).toBe(2);
+    expect(getMoveEffectiveness(ctx('Ground', { types: ['Grass', 'Flying'] }, true))).toBe(0.5);
+    expect(getMoveEffectiveness(ctx('Electric', { types: ['Ground'] }, true))).toBe(0);
+  });
+
+  it('Gravity follows the Tera type', () => {
+    expect(getMoveEffectiveness(ctx('Ground', { types: ['Steel'], isTerastallized: true, teraType: 'Flying' }, true))).toBe(1);
+  });
+
+  it('Iron Ball turns a 0x Ground matchup into a flat 1x', () => {
+    expect(getMoveEffectiveness(ctx('Ground', { types: ['Flying'], item: 'Iron Ball' }))).toBe(1);
+    expect(getMoveEffectiveness(ctx('Ground', { types: ['Fire', 'Flying'], item: 'Iron Ball' }))).toBe(1);
+    expect(getMoveEffectiveness(ctx('Ground', { types: ['Fire'], item: 'Iron Ball' }))).toBe(2);
+    expect(getMoveEffectiveness(ctx('Electric', { types: ['Ground'], item: 'Iron Ball' }))).toBe(0);
   });
 });
