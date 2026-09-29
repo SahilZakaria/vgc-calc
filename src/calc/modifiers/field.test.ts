@@ -572,7 +572,7 @@ describe('Sand SpD / Snow Def boost vs @smogon/calc (full roll arrays)', () => {
   }
 
   function buildCtx(game: OracleGame, c: WeatherCase, weatherOverride?: FieldState['weather']): DamageContext {
-    const base = context({ move: 'Psychic', field: c.field });
+    const base = context({ move: 'Psychic', field: c.field, game });
     return {
       ...base,
       attacker: dexMon(game, c.attacker[0], c.attacker[1]),
@@ -636,6 +636,18 @@ describe('Sand SpD / Snow Def boost vs @smogon/calc (full roll arrays)', () => {
       attacker: ALAKAZAM, defender: ['Garchomp', { ...BULKY_SPD, teraType: 'Rock' }], move: THUNDERBOLT, field: { weather: 'sand' },
       games: ['gen9'],
     },
+    {
+      // Only champions.js skips the boost for Mega Sol; gen789.js does not,
+      // and Gen 9 data has Meganium-Mega with Mega Sol.
+      name: 'Mega Sol attacker still meets the Sand boost in Gen 9',
+      attacker: ['Meganium-Mega', { sp: { spa: 32 }, ability: 'Mega Sol' }], defender: ['Tyranitar', BULKY_SPD], move: THUNDERBOLT, field: { weather: 'sand' },
+      games: ['gen9'],
+    },
+    {
+      name: 'Mega Sol attacker still meets the Snow boost in Gen 9',
+      attacker: ['Meganium-Mega', { sp: { atk: 32 }, ability: 'Mega Sol' }], defender: ['Glaceon', BULKY_DEF], move: EARTHQUAKE, field: { weather: 'snow' },
+      games: ['gen9'],
+    },
   ];
 
   // Cases where the reference does not apply the boost.
@@ -661,6 +673,11 @@ describe('Sand SpD / Snow Def boost vs @smogon/calc (full roll arrays)', () => {
     {
       name: 'Mega Sol attacker ignores the Sand boost',
       attacker: ['Meganium-Mega', { sp: { spa: 32 }, ability: 'Mega Sol' }], defender: ['Tyranitar', BULKY_SPD], move: THUNDERBOLT, field: { weather: 'sand' },
+      games: ['champions'],
+    },
+    {
+      name: 'Mega Sol attacker ignores the Snow boost',
+      attacker: ['Meganium-Mega', { sp: { atk: 32 }, ability: 'Mega Sol' }], defender: ['Glaceon', BULKY_DEF], move: EARTHQUAKE, field: { weather: 'snow' },
       games: ['champions'],
     },
   ];
@@ -692,5 +709,47 @@ describe('Sand SpD / Snow Def boost vs @smogon/calc (full roll arrays)', () => {
   it('runs before Sword / Beads of Ruin in the defense-stat chain', () => {
     const [first] = sortModifiers(DEFENSE_STAT_FIELD_MODIFIERS);
     expect(first).toBe(WEATHER_DEFENSE_MODIFIER);
+  });
+
+  // Mega Sol's own-move Sun effect on the damage chain (isMegaSol in
+  // gen789.js calculateBaseDamageSMSSSV / champions.js
+  // calculateBaseDamageChampions). Expected rolls come from the oracle.
+  describe('Mega Sol vs @smogon/calc', () => {
+    const MEGA_SOL: [string, DexMonOptions] = ['Meganium-Mega', { sp: { spa: 32 }, ability: 'Mega Sol' }];
+    const TARGET: [string, DexMonOptions] = ['Snorlax', BULKY_SPD];
+
+    // Each case must also differ from the same attacker without Mega Sol, so
+    // it cannot pass by ignoring the ability.
+    const changed: WeatherCase[] = [
+      { name: 'boosts its Fire move with no weather', attacker: MEGA_SOL, defender: TARGET, move: move('Flamethrower') },
+      { name: 'weakens its Water move with no weather', attacker: MEGA_SOL, defender: TARGET, move: move('Surf') },
+      { name: 'Water move in Rain is weakened, not boosted', attacker: MEGA_SOL, defender: TARGET, move: move('Surf'), field: { weather: 'rain' } },
+      { name: 'Fire move in Rain is boosted, not weakened', attacker: MEGA_SOL, defender: TARGET, move: move('Flamethrower'), field: { weather: 'rain' } },
+      { name: 'still boosts Fire when Cloud Nine clears the weather', attacker: MEGA_SOL, defender: ['Snorlax', { ...BULKY_SPD, ability: 'Cloud Nine' }], move: move('Flamethrower'), field: { weather: 'rain' } },
+      { name: 'boosts Hydro Steam with no weather', attacker: MEGA_SOL, defender: TARGET, move: move('Hydro Steam'), games: ['gen9'] },
+    ];
+
+    // Cases where Mega Sol changes nothing.
+    const unchanged: WeatherCase[] = [
+      { name: 'leaves non-Fire / Water moves alone', attacker: MEGA_SOL, defender: TARGET, move: move('Psychic') },
+      { name: "a defender's Mega Sol does not affect the attacker's move", attacker: ['Alakazam', { sp: { spa: 32 } }], defender: ['Snorlax', { ...BULKY_SPD, ability: 'Mega Sol' }], move: move('Flamethrower') },
+      { name: 'defender Utility Umbrella blocks it', attacker: MEGA_SOL, defender: ['Snorlax', { ...BULKY_SPD, item: 'Utility Umbrella' }], move: move('Flamethrower'), games: ['gen9'] },
+    ];
+
+    const withoutMegaSol = (c: WeatherCase): WeatherCase => ({
+      ...c,
+      attacker: [c.attacker[0], { ...c.attacker[1], ability: 'Pressure' }],
+    });
+
+    it.each(expand(changed))('%s (%s)', (_name, game, c) => {
+      const expected = oracleRolls(game, buildCtx(game, c));
+      expect(expected).not.toEqual(oracleRolls(game, buildCtx(game, withoutMegaSol(c))));
+      expect(calculate(buildCtx(game, c)).rolls).toEqual(expected);
+    });
+
+    it.each(expand(unchanged))('%s (%s)', (_name, game, c) => {
+      const expected = oracleRolls(game, buildCtx(game, c));
+      expect(calculate(buildCtx(game, c)).rolls).toEqual(expected);
+    });
   });
 });
