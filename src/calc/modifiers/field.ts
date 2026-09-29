@@ -96,6 +96,15 @@ export function isGrounded(pokemon: Pokemon, field: FieldState): boolean {
 }
 
 /**
+ * gen789.js calculateSMSSSV / champions.js calculateChampions: under Psychic
+ * Terrain a move with priority above 0 deals 0 damage to a grounded
+ * defender. Like @smogon/calc, this does not check who the move targets.
+ */
+export function isBlockedByPsychicTerrain(ctx: DamageContext): boolean {
+  return ctx.field.terrain === 'psychic' && ctx.move.priority > 0 && isGrounded(ctx.defender, ctx.field);
+}
+
+/**
  * dist/mechanics/util.js checkAirLock: an attacker or defender with Air Lock
  * or Cloud Nine clears the weather for the calculation.
  */

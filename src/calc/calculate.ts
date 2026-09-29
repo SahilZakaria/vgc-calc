@@ -8,6 +8,7 @@ import {
   DEFENSE_STAT_ITEM_MODIFIERS,
   FINAL_MODIFIERS,
   isImmuneByAbility,
+  isImmuneByItem,
   resolveAbilitiesAndItems,
   type ChainModifier,
 } from './modifiers/abilities-items';
@@ -16,6 +17,7 @@ import { CORE_MODIFIERS } from './modifiers/core';
 import {
   ATTACK_STAT_FIELD_MODIFIERS,
   DEFENSE_STAT_FIELD_MODIFIERS,
+  isBlockedByPsychicTerrain,
   PRIMAL_NULLIFY,
   screensMultiplier,
   terrainMultiplier,
@@ -24,7 +26,7 @@ import {
   weatherMultiplier,
 } from './modifiers/field';
 import { calculateStats } from './stats';
-import { getDefensiveTypes, getTypeEffectiveness } from './type-chart';
+import { getMoveEffectiveness } from './type-chart';
 
 /**
  * Full damage calculation: stats -> attacking / defending stat -> base damage
@@ -35,9 +37,10 @@ import { getDefensiveTypes, getTypeEffectiveness } from './type-chart';
  * ----
  *   0. Items disabled by Magic Room / Klutz are removed and defender abilities
  *      ignored by Mold Breaker are suppressed (resolveAbilitiesAndItems).
- *   1. Status moves, zero base power, type immunity, immunity abilities
- *      (Flash Fire, Levitate, ...) and primal-weather nullification deal 0
- *      on every roll (they return early there).
+ *   1. Status moves, zero base power, type immunity (after Gravity / Iron
+ *      Ball grounding), immunity abilities (Flash Fire, Levitate, ...),
+ *      primal-weather nullification, Air Balloon and Psychic Terrain vs
+ *      priority deal 0 on every roll (they return early there).
  *   2. Base power runs through the base-power chain.
  *   3. Raw stats from calculateStats. Wonder Room swaps raw Def and SpD
  *      (util.js checkRawStatChanges); stat stages still follow the stat name,
@@ -202,9 +205,11 @@ function dealsNoDamage(ctx: DamageContext): boolean {
   return (
     ctx.move.category === 'Status' ||
     ctx.move.basePower <= 0 ||
-    getTypeEffectiveness(ctx.move.type, getDefensiveTypes(ctx.defender)) === 0 ||
+    getMoveEffectiveness(ctx) === 0 ||
     isImmuneByAbility(ctx) ||
-    weatherMultiplier(ctx) === PRIMAL_NULLIFY
+    weatherMultiplier(ctx) === PRIMAL_NULLIFY ||
+    isImmuneByItem(ctx) ||
+    isBlockedByPsychicTerrain(ctx)
   );
 }
 

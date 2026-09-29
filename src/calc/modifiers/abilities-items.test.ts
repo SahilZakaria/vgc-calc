@@ -167,6 +167,8 @@ const ICE_PUNCH = move('Ice Punch', 'Ice', 75, 'Physical');
 const AQUA_JET = move('Aqua Jet', 'Water', 40, 'Physical');
 const PLAY_ROUGH = move('Play Rough', 'Fairy', 90, 'Physical');
 const BULLET_PUNCH = move('Bullet Punch', 'Steel', 40, 'Physical');
+// Bullet Punch's real +1 priority, from @smogon/calc's move data.
+const PRIORITY_BULLET_PUNCH: Move = { ...BULLET_PUNCH, priority: 1 };
 const MAGICAL_LEAF = move('Magical Leaf', 'Grass', 60, 'Special');
 const RETURN = move('Return', 'Normal', 102, 'Physical');
 const EARTHQUAKE = move('Earthquake', 'Ground', 100, 'Physical', 'allAdjacent');
@@ -299,6 +301,41 @@ const CASES: Case[] = [
   { name: 'Levitate vs non-Ground move', changes: false, ctx: ctx(phys('Garchomp'), wall('Rotom-Wash', { ability: 'Levitate' }), DRAGON_CLAW) },
   { name: 'Gen 9: Levitate with Iron Ball', changes: false, game: g9, ctx: ctx(phys('Garchomp', {}, g9), wall('Rotom-Wash', { ability: 'Levitate', item: 'Iron Ball' }, g9), HIGH_HORSEPOWER) },
   { name: 'Gen 9: Levitate vs Thousand Arrows', changes: false, game: g9, ctx: ctx(phys('Garchomp', {}, g9), wall('Gengar', { ability: 'Levitate' }, g9), THOUSAND_ARROWS) },
+
+  // Eelevate (same Ground immunity as Levitate).
+  { name: 'Eelevate vs Ground', immune: true, ctx: ctx(phys('Garchomp'), wall('Farigiraf', { ability: 'Eelevate' }), HIGH_HORSEPOWER) },
+  { name: 'Eelevate under Gravity', changes: false, ctx: ctx(phys('Garchomp'), wall('Farigiraf', { ability: 'Eelevate' }), HIGH_HORSEPOWER, field({ isGravity: true })) },
+  { name: 'Mold Breaker vs Eelevate', changes: false, ctx: ctx(phys('Excadrill', { ability: 'Mold Breaker' }), wall('Farigiraf', { ability: 'Eelevate' }), HIGH_HORSEPOWER) },
+  { name: 'Gen 9: Eelevate vs Ground', game: g9, immune: true, ctx: ctx(phys('Garchomp', {}, g9), wall('Farigiraf', { ability: 'Eelevate' }, g9), HIGH_HORSEPOWER) },
+  { name: 'Gen 9: Eelevate with Iron Ball', changes: false, game: g9, ctx: ctx(phys('Garchomp', {}, g9), wall('Farigiraf', { ability: 'Eelevate', item: 'Iron Ball' }, g9), HIGH_HORSEPOWER) },
+
+  // Air Balloon.
+  { name: 'Air Balloon vs Ground', immune: true, ctx: ctx(phys('Garchomp'), wall('Farigiraf', { item: 'Air Balloon' }), HIGH_HORSEPOWER) },
+  { name: 'Air Balloon vs spread Ground', immune: true, ctx: ctx(phys('Garchomp'), wall('Farigiraf', { item: 'Air Balloon' }), EARTHQUAKE) },
+  { name: 'Air Balloon under Gravity', changes: false, ctx: ctx(phys('Garchomp'), wall('Farigiraf', { item: 'Air Balloon' }), HIGH_HORSEPOWER, field({ isGravity: true })) },
+  { name: 'Air Balloon vs non-Ground move', changes: false, ctx: ctx(phys('Garchomp'), wall('Farigiraf', { item: 'Air Balloon' }), DRAGON_CLAW) },
+  { name: 'Magic Room disables Air Balloon', changes: false, ctx: ctx(phys('Garchomp'), wall('Farigiraf', { item: 'Air Balloon' }), HIGH_HORSEPOWER, field({ isMagicRoom: true })) },
+  { name: 'Gen 9: Air Balloon vs Ground', game: g9, immune: true, ctx: ctx(phys('Garchomp', {}, g9), wall('Farigiraf', { item: 'Air Balloon' }, g9), HIGH_HORSEPOWER) },
+
+  // Iron Ball and Gravity let Ground moves hit Flying types. Iron Ball turns
+  // a 0x matchup into a flat 1x; Gravity drops only the Flying 0x, so Fire /
+  // Flying Talonflame takes 1x with Iron Ball but 2x under Gravity.
+  { name: 'Iron Ball on a Flying type vs Ground', ctx: ctx(phys('Garchomp'), wall('Staraptor', { item: 'Iron Ball' }), HIGH_HORSEPOWER) },
+  { name: 'Iron Ball on Fire / Flying vs Ground (1x)', ctx: ctx(phys('Garchomp'), wall('Talonflame', { item: 'Iron Ball' }), HIGH_HORSEPOWER) },
+  { name: 'Magic Room disables Iron Ball on a Flying type', immune: true, changes: false, ctx: ctx(phys('Garchomp'), wall('Staraptor', { item: 'Iron Ball' }), HIGH_HORSEPOWER, field({ isMagicRoom: true })) },
+  { name: 'Gen 9: Iron Ball on a Flying type vs Ground', game: g9, ctx: ctx(phys('Garchomp', {}, g9), wall('Staraptor', { item: 'Iron Ball' }, g9), HIGH_HORSEPOWER) },
+  { name: 'Gravity on a Flying type vs Ground', changes: false, ctx: ctx(phys('Garchomp'), wall('Staraptor'), HIGH_HORSEPOWER, field({ isGravity: true })) },
+  { name: 'Gravity on Fire / Flying vs Ground (2x)', changes: false, ctx: ctx(phys('Garchomp'), wall('Talonflame'), HIGH_HORSEPOWER, field({ isGravity: true })) },
+  { name: 'Gen 9: Gravity on Fire / Flying vs spread Ground (2x)', changes: false, game: g9, ctx: ctx(phys('Garchomp', {}, g9), wall('Talonflame', {}, g9), EARTHQUAKE, field({ isGravity: true })) },
+
+  // Psychic Terrain blocks priority moves into a grounded target.
+  { name: 'Psychic Terrain blocks priority into a grounded target', immune: true, changes: false, ctx: ctx(phys('Scizor'), wall('Farigiraf'), PRIORITY_BULLET_PUNCH, field({ terrain: 'psychic' })) },
+  { name: 'Psychic Terrain does not block priority into a Flying type', changes: false, ctx: ctx(phys('Scizor'), wall('Staraptor'), PRIORITY_BULLET_PUNCH, field({ terrain: 'psychic' })) },
+  { name: 'Psychic Terrain does not block priority into an Air Balloon holder', ctx: ctx(phys('Scizor'), wall('Farigiraf', { item: 'Air Balloon' }), PRIORITY_BULLET_PUNCH, field({ terrain: 'psychic' })) },
+  { name: 'Psychic Terrain blocks priority into an Iron Ball Flying type', immune: true, ctx: ctx(phys('Scizor'), wall('Staraptor', { item: 'Iron Ball' }), PRIORITY_BULLET_PUNCH, field({ terrain: 'psychic' })) },
+  { name: 'Psychic Terrain does not block priority 0 moves', changes: false, ctx: ctx(phys('Scizor'), wall('Farigiraf'), IRON_HEAD, field({ terrain: 'psychic' })) },
+  { name: 'Gen 9: Psychic Terrain blocks priority into a grounded target', game: g9, immune: true, changes: false, ctx: ctx(phys('Scizor', {}, g9), wall('Farigiraf', {}, g9), PRIORITY_BULLET_PUNCH, field({ terrain: 'psychic' })) },
+  { name: 'Gen 9: Psychic Terrain blocks priority into an Eelevate holder under Gravity', game: g9, immune: true, changes: false, ctx: ctx(phys('Scizor', {}, g9), wall('Farigiraf', { ability: 'Eelevate' }, g9), PRIORITY_BULLET_PUNCH, field({ terrain: 'psychic', isGravity: true })) },
 
   // Immunity abilities.
   { name: 'Flash Fire vs Fire', immune: true, ctx: ctx(spec('Charizard'), wall('Farigiraf', { ability: 'Flash Fire' }), FLAMETHROWER) },

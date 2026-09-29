@@ -17,6 +17,7 @@ import {
   DEFENSE_STAT_FIELD_MODIFIERS,
   effectiveWeather,
   FIELD_DAMAGE_MODIFIERS,
+  isBlockedByPsychicTerrain,
   isGrounded,
   RUIN_MULTIPLIER,
   SCREEN_DOUBLES,
@@ -327,6 +328,25 @@ describe('terrain rules', () => {
     expect(isGrounded(mon('A', { types: ['Flying'] }), { ...field, isGravity: true })).toBe(true);
     // Terastallizing out of Flying grounds the Pokemon.
     expect(isGrounded(mon('A', { types: ['Flying'], isTerastallized: true, teraType: 'Steel' }), field)).toBe(true);
+  });
+
+  it('Psychic Terrain blocks priority moves into a grounded defender', () => {
+    // gen789.js / champions.js: priority > 0, Psychic Terrain, isGrounded(defender).
+    const at = (priority: number, s: Omit<Scenario, 'move'>): boolean => {
+      const ctx = context({ move: 'Crunch', ...s });
+      return isBlockedByPsychicTerrain({ ...ctx, move: { ...ctx.move, priority } });
+    };
+    const psychic = { field: { terrain: 'psychic' as const } };
+    expect(at(1, psychic)).toBe(true);
+    expect(at(0, psychic)).toBe(false);
+    expect(at(-1, psychic)).toBe(false);
+    expect(at(1, {})).toBe(false);
+    expect(at(1, { field: { terrain: 'grassy' } })).toBe(false);
+    expect(at(1, { ...psychic, defender: { types: ['Flying'] } })).toBe(false);
+    expect(at(1, { ...psychic, defender: { item: 'Air Balloon' } })).toBe(false);
+    expect(at(1, { field: { terrain: 'psychic', isGravity: true }, defender: { types: ['Flying'] } })).toBe(true);
+    // Only the defender's grounding matters.
+    expect(at(1, { ...psychic, attacker: { types: ['Flying'] } })).toBe(true);
   });
 
   it('Grassy Earthquake is not halved against an ungrounded defender', () => {
