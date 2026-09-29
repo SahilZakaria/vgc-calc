@@ -67,20 +67,6 @@ export const RUIN_MULTIPLIER = 3072;
 
 const NEUTRAL = 4096;
 
-/**
- * Which game's rules apply. Declared here because the committed src/types.ts
- * has no Game type; it matches the `game` field the tests put on
- * DamageContext.
- */
-export type Game = 'champions' | 'gen9';
-
-/**
- * A DamageContext that may say which game it belongs to. Only the Mega Sol
- * exception to the Sand / Snow defense boost depends on it; without `game`
- * the Gen 9 rule (boost applies) is used.
- */
-export type GameAwareContext = DamageContext & { readonly game?: Game };
-
 // ---------------------------------------------------------------------------
 // Shared helpers
 // ---------------------------------------------------------------------------
@@ -315,7 +301,7 @@ export const WEATHER_DEFENSE_BOOST = 6144;
  * The type check uses the Tera type while Terastallized, like their hasType.
  * Like the Ruin abilities, "physical" keys off the move's category only.
  */
-export function weatherDefenseMultiplier(ctx: GameAwareContext): number {
+export function weatherDefenseMultiplier(ctx: DamageContext): number {
   if (ctx.game === 'champions' && hasAbility(ctx.attacker, 'Mega Sol')) return NEUTRAL;
   const weather = effectiveWeather(ctx);
   const types = getDefensiveTypes(ctx.defender);
