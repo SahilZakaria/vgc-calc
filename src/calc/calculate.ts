@@ -26,7 +26,7 @@ import {
   weatherMultiplier,
 } from './modifiers/field';
 import { calculateStats } from './stats';
-import { getMoveEffectiveness } from './type-chart';
+import { getMoveEffectiveness } from './move-effectiveness';
 
 /**
  * Full damage calculation: stats -> attacking / defending stat -> base damage

@@ -1,4 +1,4 @@
-import type { DamageContext, Pokemon, TypeName } from '../types';
+import type { Pokemon, TypeName } from '../types';
 
 /**
  * Attacking type -> defending type -> damage multiplier.
@@ -81,29 +81,4 @@ export function getDefensiveTypes(pokemon: Pokemon): TypeName[] {
     return [pokemon.teraType];
   }
   return pokemon.types;
-}
-
-/**
- * Type effectiveness of ctx.move against ctx.defender, with the field and item
- * exceptions @smogon/calc 0.12.0 applies (gen789.js calculateSMSSSV and
- * champions.js calculateChampions, via util.js getMoveEffectiveness):
- *   - Gravity: a Ground move hits the Flying type neutrally. This is per
- *     type, so Ground vs Flying/Steel under Gravity is 2x.
- *   - Iron Ball: if the Ground move's total effectiveness is 0, it becomes
- *     1. This is a flat 1, not a per-type fix, so Ground vs Flying/Steel with
- *     Iron Ball is 1x in @smogon/calc (in-game it would be 2x).
- * Klutz and Magic Room are not checked here; resolveAbilitiesAndItems in
- * modifiers/abilities-items.ts removes the item before this runs.
- */
-export function getMoveEffectiveness(ctx: DamageContext): number {
-  const { move, defender, field } = ctx;
-  const effectiveness = getDefensiveTypes(defender).reduce(
-    (multiplier, defenderType) =>
-      field.isGravity && move.type === 'Ground' && defenderType === 'Flying'
-        ? multiplier
-        : multiplier * getTypeEffectiveness(move.type, [defenderType]),
-    1,
-  );
-  if (effectiveness === 0 && move.type === 'Ground' && defender.item === 'Iron Ball') return 1;
-  return effectiveness;
 }

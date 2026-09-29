@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { DamageContext, Pokemon, TypeName } from '../types';
-import { getDefensiveTypes, getMoveEffectiveness, getTypeEffectiveness } from './type-chart';
+import { getMoveEffectiveness } from './move-effectiveness';
+import { getDefensiveTypes, getTypeEffectiveness } from './type-chart';
 
 function makePokemon(overrides: Partial<Pokemon>): Pokemon {
   return {

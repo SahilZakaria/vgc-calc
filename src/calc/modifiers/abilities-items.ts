@@ -1,6 +1,7 @@
 import type { DamageContext, Pokemon, TypeName } from '../../types';
 import { calculateStats } from '../stats';
-import { getDefensiveTypes, getMoveEffectiveness } from '../type-chart';
+import { getMoveEffectiveness } from '../move-effectiveness';
+import { getDefensiveTypes } from '../type-chart';
 
 /**
  * Damage-affecting abilities and held items.

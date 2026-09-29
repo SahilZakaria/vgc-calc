@@ -1,6 +1,6 @@
 import type { DamageContext, Modifier, Pokemon } from '../../types';
 import { applyChainMultiplier, MODIFIER_ORDER } from '../modifier-pipeline';
-import { getMoveEffectiveness } from '../type-chart';
+import { getMoveEffectiveness } from '../move-effectiveness';
 
 /**
  * Core damage-chain modifiers: spread, critical hit, STAB, type
