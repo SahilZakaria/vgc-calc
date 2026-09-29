@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { getFinalDamage, getStabMod } from '@smogon/calc/dist/mechanics/util';
-import type { DamageContext, Move, Pokemon, SideState, StatTable, TypeName } from '../../types';
+import type { DamageContext, Game, Move, Pokemon, SideState, StatTable, TypeName } from '../../types';
 import { toSmogonMove, toSmogonPokemon, type OracleGame } from '../../oracle/smogon-adapter';
 import { MODIFIER_ORDER, runPostRoll } from '../modifier-pipeline';
 import { getTypeEffectiveness } from '../type-chart';
@@ -78,8 +78,10 @@ function context(extra: {
   move?: Move;
   isDoubles?: boolean;
   isCritical?: boolean;
+  game?: Game;
 } = {}): DamageContext {
   return {
+    game: extra.game ?? 'gen9',
     attacker: extra.attacker ?? mon('Snorlax', ['Normal']),
     defender: extra.defender ?? mon('Blissey', ['Normal']),
     move: extra.move ?? move(),

@@ -424,7 +424,7 @@ function randomContext(rng: Rng, game: OracleGame, pools: GamePools): DamageCont
   const defender = randomPokemon(rng, game, pools);
   const { move, willCrit } = randomMove(rng, pools);
   const field = randomField(rng);
-  return { attacker, defender, move, field, isCritical: willCrit || rng.chance(0.25) };
+  return { game, attacker, defender, move, field, isCritical: willCrit || rng.chance(0.25) };
 }
 
 // ---------------------------------------------------------------------------

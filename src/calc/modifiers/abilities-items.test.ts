@@ -11,6 +11,7 @@ import {
 import type {
   DamageContext,
   FieldState,
+  Game,
   Move,
   MoveCategory,
   MoveTarget,
@@ -139,7 +140,8 @@ const ctx = (
   m: Move,
   f: FieldState = field(),
   isCritical = false,
-): DamageContext => ({ attacker, defender, move: m, field: f, isCritical });
+  game: Game = 'gen9',
+): DamageContext => ({ game, attacker, defender, move: m, field: f, isCritical });
 
 // Attackers (Champions Stat Points unless noted; all legal).
 const PHYS = table(2, 32, 0, 0, 0, 32);

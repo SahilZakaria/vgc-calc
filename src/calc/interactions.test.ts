@@ -10,6 +10,7 @@ import {
 import type {
   DamageContext,
   FieldState,
+  Game,
   Move,
   MoveCategory,
   Pokemon,
@@ -135,7 +136,14 @@ const field = (overrides: Partial<Omit<FieldState, 'attackerSide' | 'defenderSid
   defenderSide: side(),
 });
 
-const ctx = (attacker: Pokemon, defender: Pokemon, m: Move, f: FieldState = field()): DamageContext => ({
+const ctx = (
+  attacker: Pokemon,
+  defender: Pokemon,
+  m: Move,
+  f: FieldState = field(),
+  game: Game = 'gen9',
+): DamageContext => ({
+  game,
   attacker,
   defender,
   move: m,

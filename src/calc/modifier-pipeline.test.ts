@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { DamageContext, Modifier, Pokemon, SideState, StatTable } from '../types';
+import type { DamageContext, Game, Modifier, Pokemon, SideState, StatTable } from '../types';
 import {
   applyChainMultiplier,
   DAMAGE_MODIFIERS,
@@ -40,7 +40,10 @@ function mon(species: string): Pokemon {
   };
 }
 
+const game: Game = 'gen9';
+
 const ctx: DamageContext = {
+  game,
   attacker: mon('Attacker'),
   defender: mon('Defender'),
   move: {

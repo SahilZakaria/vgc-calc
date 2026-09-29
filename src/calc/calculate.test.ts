@@ -11,6 +11,7 @@ import {
 import type {
   DamageContext,
   FieldState,
+  Game,
   Move,
   MoveCategory,
   MoveTarget,
@@ -178,7 +179,8 @@ const ctx = (
   m: Move,
   f: FieldState = field(),
   isCritical = false,
-): DamageContext => ({ attacker, defender, move: m, field: f, isCritical });
+  game: Game = 'gen9',
+): DamageContext => ({ game, attacker, defender, move: m, field: f, isCritical });
 
 // Common Champions sets (Stat Points, all legal: <= 32 per stat, <= 66 total).
 const garchomp = (o: MonOptions = {}): Pokemon =>

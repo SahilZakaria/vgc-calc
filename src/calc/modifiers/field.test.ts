@@ -5,7 +5,7 @@ import {
   smogonGeneration, toSmogonField, toSmogonMove, toSmogonPokemon, type OracleGame,
 } from '../../oracle/smogon-adapter';
 import type {
-  DamageContext, FieldState, Move, MoveCategory, Pokemon, SideState, StatTable, TypeName,
+  DamageContext, FieldState, Game, Move, MoveCategory, Pokemon, SideState, StatTable, TypeName,
 } from '../../types';
 import { calculate } from '../calculate';
 import { calculateBaseDamage } from '../damage';
@@ -118,10 +118,12 @@ interface Scenario {
   attacker?: Partial<Pokemon>;
   defender?: Partial<Pokemon>;
   isCritical?: boolean;
+  game?: Game;
 }
 
 function context(s: Scenario): DamageContext {
   return {
+    game: s.game ?? 'gen9',
     attacker: mon('Snorlax', { ability: 'Gluttony', ...s.attacker }),
     defender: mon('Blissey', { ability: 'Natural Cure', ...s.defender }),
     move: move(s.move),

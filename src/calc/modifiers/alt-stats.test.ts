@@ -11,6 +11,7 @@ import {
 import type {
   DamageContext,
   FieldState,
+  Game,
   Move,
   MoveCategory,
   Pokemon,
@@ -154,7 +155,8 @@ const ctx = (
   m: Move,
   f: FieldState = field(),
   isCritical = false,
-): DamageContext => ({ attacker, defender, move: m, field: f, isCritical });
+  game: Game = 'gen9',
+): DamageContext => ({ game, attacker, defender, move: m, field: f, isCritical });
 
 // Move data (base power, type, category, contact) matches @smogon/calc's dex.
 const FOUL_PLAY = move('Foul Play', 'Dark', 95, 'Physical', true);
