@@ -31,7 +31,8 @@ import {
 //
 // Replaying
 // ---------
-//   FUZZ_SEED=<seed> npx vitest run src/oracle/fuzz.test.ts
+//   FUZZ_SEED=<seed> npm run test:fuzz
+// The fuzz run is excluded from `npm test`; `npm run test:fuzz` runs only it.
 // FUZZ_SEED accepts an integer or any string (hashed). Each case draws from
 // its own PRNG seeded by (seed, game, case index), so a case replays the same
 // way whatever FUZZ_CASES is. Other knobs:
@@ -40,11 +41,14 @@ import {
 //
 // What is generated
 // -----------------
+// Mismatches caused by known @smogon/calc bugs (KNOWN_ORACLE_BUGS below) are
+// reported as expected disagreements and do not fail the run.
+//
 // Species, types, base stats and weights come from @smogon/calc's dex for the
 // game under test, and so do moves (type, category, base power, target,
 // priority, flags). Items and abilities are drawn from the ones src/calc acts
 // on, plus neutral fillers neither calculator acts on, restricted to those in
-// that game's dex. Champions Pokemon are level 50 with 31 IVs and a legal Stat
+// that game's dex; Mega forms always hold their own Mega Stone. Champions Pokemon are level 50 with 31 IVs and a legal Stat
 // Point spread (<= 32 per stat, <= 66 total); Gen 9 Pokemon get a random level
 // (biased to 50), IVs 0-31 and a legal EV spread (<= 252 per stat, <= 510).
 //
@@ -234,6 +238,8 @@ interface GamePools {
   abilities: string[];
   items: string[];
   natures: string[];
+  /** Mega form name -> the Mega Stone it evolves with. */
+  megaStones: ReadonlyMap<string, string>;
 }
 
 function buildPools(game: OracleGame): GamePools {
@@ -255,6 +261,11 @@ function buildPools(game: OracleGame): GamePools {
   const damagingMoves = usable.filter((m) => m.category !== 'Status' && m.basePower > 0);
   const statusMoves = usable.filter((m) => m.category === 'Status');
 
+  const megaStones = new Map<string, string>();
+  for (const item of gen.items) {
+    for (const mega of Object.values(item.megaStone ?? {})) megaStones.set(mega, item.name);
+  }
+
   return {
     species,
     damagingMoves,
@@ -262,6 +273,7 @@ function buildPools(game: OracleGame): GamePools {
     abilities: [...SUPPORTED_ABILITIES, ...NEUTRAL_ABILITIES].filter((a) => abilityNames.has(a)),
     items: [...SUPPORTED_ITEMS, ...NEUTRAL_ITEMS].filter((i) => itemNames.has(i)),
     natures: [...gen.natures].map((n) => n.name as string),
+    megaStones,
   };
 }
 
@@ -296,6 +308,17 @@ function randomIvs(rng: Rng): StatTable {
   const out = zeroTable();
   for (const stat of STATS) out[stat] = rng.chance(0.6) ? 31 : rng.int(0, 31);
   return out;
+}
+
+/**
+ * A Mega form always holds its own Mega Stone, since Mega Evolution needs it.
+ * The random draw still happens for Megas so every other case replays the
+ * same. Gen 9's dex has one Mega without a stone, Rayquaza-Mega, which keeps
+ * the random item.
+ */
+function randomItem(rng: Rng, pools: GamePools, species: string): string | null {
+  const drawn = rng.chance(0.7) ? rng.pick(pools.items) : null;
+  return pools.megaStones.get(species) ?? drawn;
 }
 
 function randomPokemon(rng: Rng, game: OracleGame, pools: GamePools): Pokemon {
@@ -342,7 +365,7 @@ function randomPokemon(rng: Rng, game: OracleGame, pools: GamePools): Pokemon {
     nature,
     ability: rng.pick(pools.abilities),
     abilitySuppressed: rng.chance(0.05),
-    item: rng.chance(0.7) ? rng.pick(pools.items) : null,
+    item: randomItem(rng, pools, dex.name),
     weightKg: dex.weightkg,
     currentHp,
     statBoosts,
@@ -473,6 +496,54 @@ interface Mismatch {
   theirs: Outcome;
 }
 
+// ---------------------------------------------------------------------------
+// Known @smogon/calc bugs
+// ---------------------------------------------------------------------------
+//
+// Mismatches matching one of these are expected disagreements: the oracle is
+// wrong, not us. They do not fail the test, but each one is still counted
+// and printed. Keep `matches` narrow (the setup and the shape of the wrong
+// answer) so a real defect in the same area still fails.
+
+interface KnownOracleBug {
+  id: string;
+  description: string;
+  matches(game: OracleGame, ctx: DamageContext, ours: Outcome, theirs: Outcome): boolean;
+}
+
+const KNOWN_ORACLE_BUGS: readonly KnownOracleBug[] = [
+  {
+    id: 'body-press-wonder-room',
+    description:
+      'Body Press under Wonder Room: checkRawStatChanges has already swapped the ' +
+      "attacker's Def and SpD, then calculateAttack reads 'spd' when isWonderRoom " +
+      "(gen789.js:956, champions.js:557), so it swaps twice and uses the unswapped Def.",
+    matches: (_game, ctx, ours, theirs) =>
+      ctx.move.name === 'Body Press' && ctx.field.isWonderRoom && 'rolls' in ours && 'rolls' in theirs,
+  },
+  {
+    id: 'champions-iron-ball-levitate',
+    description:
+      'Champions only: the Levitate / Eelevate Ground immunity check (champions.js:178) ' +
+      "lacks gen789.js's !hasItem('Iron Ball') guard, so a grounded Iron Ball holder " +
+      'takes 0 from Ground moves.',
+    matches: (game, ctx, ours, theirs) =>
+      game === 'champions' &&
+      ctx.move.type === 'Ground' &&
+      ctx.defender.item === 'Iron Ball' &&
+      (ctx.defender.ability === 'Levitate' || ctx.defender.ability === 'Eelevate') &&
+      !ctx.field.isGravity &&
+      'rolls' in ours &&
+      ours.rolls.some((r) => r > 0) &&
+      'rolls' in theirs &&
+      theirs.rolls.every((r) => r === 0),
+  },
+];
+
+function knownOracleBug(game: OracleGame, m: Mismatch): KnownOracleBug | undefined {
+  return KNOWN_ORACLE_BUGS.find((bug) => bug.matches(game, m.ctx, m.ours, m.theirs));
+}
+
 function oneLine(game: OracleGame, m: Mismatch): string {
   const { attacker: a, defender: d, move, field } = m.ctx;
   return (
@@ -486,7 +557,7 @@ function oneLine(game: OracleGame, m: Mismatch): string {
 function reproduction(game: OracleGame, m: Mismatch): string {
   return [
     `// ---- fuzz mismatch: game=${game} seed=${SEED} case=${m.index} ----`,
-    `// replay: FUZZ_SEED=${SEED} npx vitest run src/oracle/fuzz.test.ts`,
+    `// replay: FUZZ_SEED=${SEED} npm run test:fuzz`,
     `const game: OracleGame = '${game}';`,
     `const ctx: DamageContext = ${JSON.stringify(m.ctx, null, 2)};`,
     `// ours:   ${showOutcome(m.ours)}`,
@@ -508,16 +579,32 @@ describe.each(GAMES)('fuzz: calculate() vs @smogon/calc (%s)', (game) => {
       if (!sameOutcome(ours, theirs)) mismatches.push({ index, ctx, ours, theirs });
     }
 
+    const expected = new Map<KnownOracleBug, Mismatch[]>();
+    const unexpected: Mismatch[] = [];
+    for (const m of mismatches) {
+      const bug = knownOracleBug(game, m);
+      if (bug === undefined) unexpected.push(m);
+      else expected.set(bug, [...(expected.get(bug) ?? []), m]);
+    }
+
     const passed = CASES - mismatches.length;
-    console.log(`[fuzz] ${game}: ${passed}/${CASES} cases matched (seed ${SEED})`);
-    if (mismatches.length > 0) {
-      for (const m of mismatches) console.log(oneLine(game, m));
-      for (const m of mismatches.slice(0, PRINT_LIMIT)) console.log(reproduction(game, m));
-      if (mismatches.length > PRINT_LIMIT) {
-        console.log(`[fuzz] ${mismatches.length - PRINT_LIMIT} more not printed in full; raise FUZZ_PRINT to see them.`);
+    console.log(
+      `[fuzz] ${game}: ${passed}/${CASES} cases matched, ` +
+        `${mismatches.length - unexpected.length} expected disagreements (known @smogon/calc bugs), ` +
+        `${unexpected.length} unexpected (seed ${SEED})`,
+    );
+    for (const [bug, hits] of expected) {
+      console.log(`[fuzz] ${game}: expected disagreement ${bug.id} x${hits.length}: ${bug.description}`);
+      for (const m of hits) console.log(`  ${oneLine(game, m)}`);
+    }
+    if (unexpected.length > 0) {
+      for (const m of unexpected) console.log(oneLine(game, m));
+      for (const m of unexpected.slice(0, PRINT_LIMIT)) console.log(reproduction(game, m));
+      if (unexpected.length > PRINT_LIMIT) {
+        console.log(`[fuzz] ${unexpected.length - PRINT_LIMIT} more not printed in full; raise FUZZ_PRINT to see them.`);
       }
     }
 
-    expect(mismatches.map((m) => m.index), `${mismatches.length} of ${CASES} ${game} cases disagree with @smogon/calc`).toEqual([]);
+    expect(unexpected.map((m) => m.index), `${unexpected.length} of ${CASES} ${game} cases disagree with @smogon/calc`).toEqual([]);
   });
 });
