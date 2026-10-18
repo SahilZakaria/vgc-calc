@@ -4,7 +4,9 @@
   "type": "module",
   "scripts": {
     "test": "vitest run",
-    "test:fuzz": "vitest run --config vitest.fuzz.config.ts"
+    "test:fuzz": "vitest run --config vitest.fuzz.config.ts",
+    "ui:dev": "npm --prefix ui run dev --",
+    "ui:build": "npm --prefix ui run build --"
   },
   "devDependencies": {
     "@smogon/calc": "^0.12.0",
