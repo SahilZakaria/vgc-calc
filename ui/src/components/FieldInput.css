@@ -1,0 +1,100 @@
+.field-input {
+  --fi-border: #c9ccd3;
+  --fi-muted: #5b6070;
+  --fi-bg: #ffffff;
+  --fi-accent: #3159c4;
+
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-size: 14px;
+  color: inherit;
+}
+
+@media (prefers-color-scheme: dark) {
+  .field-input {
+    --fi-border: #3a3f4b;
+    --fi-muted: #a3a8b6;
+    --fi-bg: #1b1e25;
+    --fi-accent: #7d9cf0;
+  }
+}
+
+.field-input__group {
+  margin: 0;
+  padding: 10px 12px 12px;
+  border: 1px solid var(--fi-border);
+  border-radius: 6px;
+  background: var(--fi-bg);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.field-input__group > legend {
+  padding: 0 4px;
+  font-weight: 600;
+}
+
+.field-input__sides {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.field-input__format {
+  display: inline-flex;
+  gap: 16px;
+}
+
+.field-input__selects {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.field-input__select {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.field-input__select > span {
+  color: var(--fi-muted);
+}
+
+.field-input__select select {
+  font: inherit;
+  padding: 3px 6px;
+  border: 1px solid var(--fi-border);
+  border-radius: 4px;
+  background: var(--fi-bg);
+  color: inherit;
+}
+
+.field-input__toggles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 4px 12px;
+}
+
+.field-input__ruin {
+  padding-top: 8px;
+  border-top: 1px dashed var(--fi-border);
+}
+
+.field-input__toggle,
+.field-input__radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.field-input__toggle input,
+.field-input__radio input {
+  margin: 0;
+  accent-color: var(--fi-accent);
+}
