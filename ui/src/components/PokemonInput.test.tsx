@@ -3,9 +3,13 @@
 // behind the event handlers are tested in pokemonInputModel.test.ts.
 
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import type { Game, Pokemon, StatTable } from '../../../src/types';
+import { loadLegalData } from './legalData';
 import { PokemonInput } from './PokemonInput';
+
+// In the app the dex data loads after first paint; render with it loaded.
+beforeAll(() => loadLegalData());
 
 const table = (hp: number, atk: number, def: number, spa: number, spd: number, spe: number): StatTable => ({
   hp, atk, def, spa, spd, spe,

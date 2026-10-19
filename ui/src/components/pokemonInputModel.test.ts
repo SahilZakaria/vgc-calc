@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import type { Pokemon, StatTable } from '../../../src/types';
+import { loadLegalData } from './legalData';
 import {
   applySpecies,
   evToSp,
@@ -14,6 +15,9 @@ import {
   spreadLimits,
   spreadValue,
 } from './pokemonInputModel';
+
+// Item lists and legal abilities come from dex data that loads on demand.
+beforeAll(() => loadLegalData());
 
 const table = (hp: number, atk: number, def: number, spa: number, spd: number, spe: number): StatTable => ({
   hp, atk, def, spa, spd, spe,

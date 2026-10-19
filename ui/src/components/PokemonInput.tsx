@@ -24,7 +24,7 @@ import {
   spreadValue,
   type BoostStat,
 } from './pokemonInputModel';
-import { legalAbilities } from './legalData';
+import { legalAbilities, useLegalData } from './legalData';
 import './PokemonInput.css';
 
 const GAME_LABEL: Record<Game, string> = {
@@ -60,6 +60,9 @@ const parseInput = (raw: string): number => (raw.trim() === '' ? 0 : Number(raw)
  */
 export function PokemonInput({ pokemon, onChange, game, label }: PokemonInputProps) {
   const id = useId();
+  // Legal abilities and items come from dex data that loads after first
+  // paint. Until then the lists are empty, so nothing is flagged as illegal.
+  const legalReady = useLegalData();
   const data = getGameData(game);
   const isChampions = game === 'champions';
   const shown = normalizeForGame(pokemon, game);
@@ -67,7 +70,7 @@ export function PokemonInput({ pokemon, onChange, game, label }: PokemonInputPro
   const stats = finalStats(shown, game);
   const nature = data.natures.find((n) => n.name === shown.nature);
   const abilities = legalAbilities(game, shown.species);
-  const abilityLegal = abilities.some((a) => a.name === shown.ability);
+  const abilityLegal = !legalReady || abilities.some((a) => a.name === shown.ability);
 
   const emit = (next: Pokemon) => onChange(normalizeForGame(next, game));
 
@@ -152,7 +155,9 @@ export function PokemonInput({ pokemon, onChange, game, label }: PokemonInputPro
             value={shown.ability}
             onChange={(e) => emit({ ...shown, ability: e.target.value })}
           >
-            {/* Keeps the select controlled when the current ability is not legal. */}
+            {/* Keeps the select controlled while loading, and when the current
+                ability is not legal. */}
+            {!legalReady && <option value={shown.ability}>{shown.ability || '—'}</option>}
             {!abilityLegal && (
               <option value={shown.ability} disabled>
                 {shown.ability ? `${shown.ability} (not legal)` : '—'}
@@ -180,7 +185,7 @@ export function PokemonInput({ pokemon, onChange, game, label }: PokemonInputPro
           noneLabel="No item"
           onSelect={(item) => emit({ ...shown, item })}
           warning={
-            shown.item !== null && !data.items.includes(shown.item)
+            legalReady && shown.item !== null && !data.items.includes(shown.item)
               ? `${shown.item} is not an item in ${GAME_LABEL[game]}.`
               : undefined
           }

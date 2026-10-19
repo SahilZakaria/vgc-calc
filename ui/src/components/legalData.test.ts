@@ -1,6 +1,17 @@
 import { Dex } from '@pkmn/dex';
-import { describe, expect, it } from 'vitest';
-import { cachedLearnset, isSpeciesInGame, legalAbilities, legalItems, loadLearnset } from './legalData';
+import { beforeAll, describe, expect, it } from 'vitest';
+import {
+  cachedLearnset,
+  isSpeciesInGame,
+  legalAbilities,
+  legalItems,
+  loadLearnset,
+  loadLegalData,
+} from './legalData';
+
+// The dex data loads on demand; the synchronous lookups need it first.
+// legalData.loading.test.ts covers the not-yet-loaded state.
+beforeAll(() => loadLegalData());
 
 const names = (game: 'champions' | 'gen9', species: string) => legalAbilities(game, species).map((a) => a.name);
 

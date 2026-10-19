@@ -15,7 +15,7 @@ import {
   spToEv,
 } from '../../../src/champions/stats';
 import type { Game, Pokemon, StatName, StatTable, TypeName } from '../../../src/types';
-import { legalAbilities, legalItems } from './legalData';
+import { isLegalDataReady, legalAbilities, legalItems } from './legalData';
 
 export type BoostStat = keyof Pokemon['statBoosts'];
 export type Status = Pokemon['status'];
@@ -68,7 +68,10 @@ export interface NatureOption {
 
 export interface GameData {
   species: readonly string[];
-  /** Items obtainable in this game, from @pkmn/dex (see legalData.ts). */
+  /**
+   * Items obtainable in this game, from @pkmn/dex (see legalData.ts). Empty
+   * until the dex data has loaded.
+   */
   items: readonly string[];
   natures: readonly NatureOption[];
 }
@@ -103,7 +106,8 @@ export function getGameData(game: Game): GameData {
     items: legalItems(game),
     natures: natures.sort((a, b) => byName(a.name, b.name)),
   };
-  gameDataCache.set(game, data);
+  // Before the dex data loads, items is a placeholder; build again later.
+  if (isLegalDataReady()) gameDataCache.set(game, data);
   return data;
 }
 
@@ -114,8 +118,8 @@ function isTypeName(value: string): value is TypeName {
 // Returns the Pokemon with the new species' base stats, types, weight and
 // first legal ability, or null if the species is not in this game's data.
 // Stats come from @smogon/calc; the ability list from @pkmn/dex. If @pkmn/dex
-// has no ability list for the species in this game, @smogon/calc's single
-// listed ability is used.
+// has no ability list for the species in this game, or its data has not
+// loaded yet, @smogon/calc's single listed ability is used.
 // HP is reset to full because max HP changes with the species.
 export function applySpecies(pokemon: Pokemon, speciesName: string, game: Game): Pokemon | null {
   const species = generation(game).species.get(toID(speciesName));

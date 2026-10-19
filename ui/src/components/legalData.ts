@@ -3,27 +3,60 @@
 // data for the damage calc, but it stores only one ability per species and has
 // no learnsets, so legality checks come from here.
 //
-// Champions uses Showdown's `champions` mod from @pkmn/mods. That mod brings
-// its own learnsets, items and legality flags. It has no species table, so
-// species ability lists come from Showdown's shared Gen 9 pokedex, which is
-// also what Showdown validates Champions teams against.
+// The dex data lives in legalDex.ts and is loaded with a dynamic import so it
+// stays out of the main bundle. Call loadLegalData() (or use the
+// useLegalData hook) before relying on the synchronous lookups: until it
+// resolves they return empty results. Only type imports from @pkmn/dex are
+// allowed here; a value import would pull the whole dex back into the main
+// chunk.
 
-import { Dex, toID, type ID, type ModData, type ModdedDex, type Species } from '@pkmn/dex';
-import { Abilities, FormatsData, Items, Learnsets, Moves } from '@pkmn/mods/champions';
+import { useEffect, useSyncExternalStore } from 'react';
+import { toID } from '@smogon/calc';
+import type { ModdedDex, Species } from '@pkmn/dex';
 import type { Game } from '../../../src/types';
 
-// Only the mod's data tables are imported. Its Scripts, Rulesets and Formats
-// pull in a bundled copy of the whole Showdown simulator (about 9 MB), which
-// legality lookups do not need. `gen: 9` makes Gen 9 the parent data, as in
-// the full mod. The package README says mod data must be cast to ModData.
-// The exports map has no types entry, so ui/tsconfig.json maps the path to
-// the .d.ts for type checking.
-const championsData = { Abilities, FormatsData, Items, Learnsets, Moves, Scripts: { gen: 9 } };
+type Dexes = Readonly<Record<Game, ModdedDex>>;
 
-const DEXES: Readonly<Record<Game, ModdedDex>> = {
-  champions: Dex.mod('champions' as ID, championsData as unknown as ModData),
-  gen9: Dex.forGen(9),
-};
+let dexes: Dexes | null = null;
+let loading: Promise<void> | null = null;
+const listeners = new Set<() => void>();
+
+// Loads the dex data once. Safe to call repeatedly; later calls share the
+// first load. A failed load can be retried.
+export function loadLegalData(): Promise<void> {
+  if (!loading) {
+    loading = import('./legalDex').then(
+      (mod) => {
+        dexes = mod.DEXES;
+        for (const listener of listeners) listener();
+      },
+      (error: unknown) => {
+        loading = null;
+        throw error;
+      },
+    );
+  }
+  return loading;
+}
+
+export function isLegalDataReady(): boolean {
+  return dexes !== null;
+}
+
+function subscribe(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+// Starts loading the dex data after the first render and re-renders the
+// component when it arrives. Returns whether it is ready.
+export function useLegalData(): boolean {
+  const ready = useSyncExternalStore(subscribe, isLegalDataReady, isLegalDataReady);
+  useEffect(() => {
+    if (!ready) loadLegalData().catch(() => undefined);
+  }, [ready]);
+  return ready;
+}
 
 // Learnset sources look like "9M", "9L27", "8E": the leading digit is the
 // generation. Only Gen 9 sources count in both games (Champions entries are
@@ -36,17 +69,20 @@ export interface AbilityOption {
 }
 
 // The species if it exists and is obtainable in this game, else undefined.
+// Also undefined while the dex data is not loaded.
 function legalSpecies(game: Game, name: string): Species | undefined {
-  const species = DEXES[game].species.get(name);
-  return species.exists && !species.isNonstandard ? species : undefined;
+  const species = dexes?.[game].species.get(name);
+  return species && species.exists && !species.isNonstandard ? species : undefined;
 }
 
+// False while the dex data is not loaded.
 export function isSpeciesInGame(game: Game, name: string): boolean {
   return legalSpecies(game, name) !== undefined;
 }
 
 // The species' abilities in slot order (0, 1, Hidden, Special). Empty when
-// the species is unknown or not obtainable in this game.
+// the species is unknown or not obtainable in this game, or while the dex
+// data is not loaded.
 export function legalAbilities(game: Game, speciesName: string): AbilityOption[] {
   const species = legalSpecies(game, speciesName);
   if (!species) return [];
@@ -64,14 +100,17 @@ export function legalAbilities(game: Game, speciesName: string): AbilityOption[]
 }
 
 const itemCache = new Map<Game, readonly string[]>();
+const NO_ITEMS: readonly string[] = [];
 
 // Items obtainable in this game, sorted by name. Showdown marks items the
 // game does not have (Mega Stones, Z-Crystals and TRs in Scarlet/Violet;
-// anything outside the Champions item list) as nonstandard.
+// anything outside the Champions item list) as nonstandard. Empty while the
+// dex data is not loaded.
 export function legalItems(game: Game): readonly string[] {
+  if (!dexes) return NO_ITEMS;
   const cached = itemCache.get(game);
   if (cached) return cached;
-  const items = DEXES[game].items
+  const items = dexes[game].items
     .all()
     .filter((item) => !item.isNonstandard)
     .map((item) => item.name)
@@ -98,9 +137,10 @@ const learnsetResults = new Map<string, ReadonlySet<string> | null>();
 const cacheKey = (game: Game, speciesName: string) => `${game}:${toID(speciesName)}`;
 
 async function buildLearnset(game: Game, speciesName: string): Promise<ReadonlySet<string> | null> {
+  await loadLegalData();
   const start = legalSpecies(game, speciesName);
-  if (!start) return null;
-  const dex = DEXES[game];
+  if (!start || !dexes) return null;
+  const dex = dexes[game];
   const moves = new Set<string>();
   const seen = new Set<string>();
   let current: Species | undefined = start;
@@ -119,15 +159,22 @@ async function buildLearnset(game: Game, speciesName: string): Promise<ReadonlyS
 
 // Move IDs the species can learn in this game, or null when @pkmn/dex has no
 // learnset for it there (unknown species, or not obtainable in this game).
-// Gen 9 learnsets are loaded on demand, so this is async; results are cached.
+// Loads the dex data first if needed, and Gen 9 learnsets load on demand, so
+// this is async; results are cached. A failed load is not cached.
 export function loadLearnset(game: Game, speciesName: string): Promise<ReadonlySet<string> | null> {
   const key = cacheKey(game, speciesName);
   let pending = learnsetCache.get(key);
   if (!pending) {
-    pending = buildLearnset(game, speciesName).then((result) => {
-      learnsetResults.set(key, result);
-      return result;
-    });
+    pending = buildLearnset(game, speciesName).then(
+      (result) => {
+        learnsetResults.set(key, result);
+        return result;
+      },
+      (error: unknown) => {
+        learnsetCache.delete(key);
+        throw error;
+      },
+    );
     learnsetCache.set(key, pending);
   }
   return pending;
