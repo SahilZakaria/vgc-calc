@@ -1,0 +1,102 @@
+/* Every color in the UI is defined here. Components use these tokens and
+   define no color values of their own.
+
+   Dark is the default. <html data-theme> picks the theme:
+     "dark"   (or no attribute) - dark
+     "light"                    - light
+     "system"                   - follows prefers-color-scheme
+   The light block is written twice because plain CSS cannot share one rule
+   between a selector and a media query. Keep the two copies identical. */
+
+:root {
+  color-scheme: dark;
+
+  --color-bg: #111317;
+  --color-surface: #1a1d23;
+  --color-surface-2: #232730;
+  --color-hover: #2b3242;
+  --color-border: #353b47;
+  --color-text: #e6e8ec;
+  --color-text-muted: #9aa1ae;
+  --color-accent: #6f9cf6;
+  --color-accent-contrast: #0d1117;
+  --color-accent-soft: rgb(111 156 246 / 0.14);
+  --color-warn: #f0b060;
+  --color-danger: #f2867d;
+  --color-stat-plus: #f08070;
+  --color-stat-minus: #79b0ea;
+  --color-shadow: rgb(0 0 0 / 0.45);
+
+  /* Type badges keep the same colors in both themes. */
+  --color-type-text: #ffffff;
+  --color-type-text-shadow: rgb(0 0 0 / 0.35);
+  --color-type-unknown: #888888;
+  --type-normal: #9fa19f;
+  --type-fire: #e62829;
+  --type-water: #2980ef;
+  --type-electric: #d4a800;
+  --type-grass: #3fa129;
+  --type-ice: #3dcef3;
+  --type-fighting: #ff8000;
+  --type-poison: #9141cb;
+  --type-ground: #915121;
+  --type-flying: #81b9ef;
+  --type-psychic: #ef4179;
+  --type-bug: #91a119;
+  --type-rock: #afa981;
+  --type-ghost: #704170;
+  --type-dragon: #5060e1;
+  --type-dark: #624d4e;
+  --type-steel: #60a1b8;
+  --type-fairy: #ef70ef;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --color-bg: #f1f3f6;
+  --color-surface: #ffffff;
+  --color-surface-2: #f6f7f9;
+  --color-hover: #e6edfb;
+  --color-border: #d4d7dd;
+  --color-text: #1c1f24;
+  --color-text-muted: #5f6673;
+  --color-accent: #2f6fde;
+  --color-accent-contrast: #ffffff;
+  --color-accent-soft: rgb(47 111 222 / 0.1);
+  --color-warn: #a05a00;
+  --color-danger: #b3261e;
+  --color-stat-plus: #c0392b;
+  --color-stat-minus: #2a6fb0;
+  --color-shadow: rgb(0 0 0 / 0.15);
+}
+
+@media (prefers-color-scheme: light) {
+  :root[data-theme='system'] {
+    color-scheme: light;
+
+    --color-bg: #f1f3f6;
+    --color-surface: #ffffff;
+    --color-surface-2: #f6f7f9;
+    --color-hover: #e6edfb;
+    --color-border: #d4d7dd;
+    --color-text: #1c1f24;
+    --color-text-muted: #5f6673;
+    --color-accent: #2f6fde;
+    --color-accent-contrast: #ffffff;
+    --color-accent-soft: rgb(47 111 222 / 0.1);
+    --color-warn: #a05a00;
+    --color-danger: #b3261e;
+    --color-stat-plus: #c0392b;
+    --color-stat-minus: #2a6fb0;
+    --color-shadow: rgb(0 0 0 / 0.15);
+  }
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: 14px/1.4 system-ui, -apple-system, 'Segoe UI', sans-serif;
+}

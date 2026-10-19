@@ -1,40 +1,17 @@
 /* PokemonInput. All selectors are prefixed pki- to stay out of the way of
-   other components. Colors are tokens so a parent can retheme them. */
+   other components. Colors come from the shared tokens in src/theme.css. */
 
 .pki {
-  --pki-bg: #ffffff;
-  --pki-surface: #f5f6f8;
-  --pki-border: #d4d7dd;
-  --pki-text: #1c1f24;
-  --pki-muted: #616875;
-  --pki-accent: #2f6fde;
-  --pki-plus: #c0392b;
-  --pki-minus: #2a6fb0;
-  --pki-warn: #b3261e;
   --pki-radius: 6px;
 
   box-sizing: border-box;
   max-width: 34rem;
   padding: 1rem;
-  border: 1px solid var(--pki-border);
+  border: 1px solid var(--color-border);
   border-radius: calc(var(--pki-radius) * 1.5);
-  background: var(--pki-bg);
-  color: var(--pki-text);
+  background: var(--color-surface);
+  color: var(--color-text);
   font: 14px/1.4 system-ui, -apple-system, 'Segoe UI', sans-serif;
-}
-
-@media (prefers-color-scheme: dark) {
-  .pki {
-    --pki-bg: #1b1d21;
-    --pki-surface: #25282d;
-    --pki-border: #3a3e45;
-    --pki-text: #e7e9ec;
-    --pki-muted: #9aa1ad;
-    --pki-accent: #6a9cf5;
-    --pki-plus: #f08070;
-    --pki-minus: #79b0ea;
-    --pki-warn: #f2867d;
-  }
 }
 
 .pki *,
@@ -67,7 +44,7 @@
 }
 
 .pki-label {
-  color: var(--pki-muted);
+  color: var(--color-text-muted);
   font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -78,15 +55,15 @@
   width: 100%;
   min-height: 2rem;
   padding: 0.3rem 0.5rem;
-  border: 1px solid var(--pki-border);
+  border: 1px solid var(--color-border);
   border-radius: var(--pki-radius);
-  background: var(--pki-surface);
+  background: var(--color-surface-2);
   color: inherit;
   font: inherit;
 }
 
 .pki-input:focus-visible {
-  outline: 2px solid var(--pki-accent);
+  outline: 2px solid var(--color-accent);
   outline-offset: 1px;
 }
 
@@ -103,7 +80,7 @@
   display: inline-flex;
   align-items: center;
   min-height: 2rem;
-  color: var(--pki-muted);
+  color: var(--color-text-muted);
 }
 
 /* Searchable dropdown */
@@ -122,10 +99,10 @@
   padding: 0.25rem 0;
   overflow-y: auto;
   list-style: none;
-  border: 1px solid var(--pki-border);
+  border: 1px solid var(--color-border);
   border-radius: var(--pki-radius);
-  background: var(--pki-bg);
-  box-shadow: 0 6px 18px rgb(0 0 0 / 0.15);
+  background: var(--color-surface);
+  box-shadow: 0 6px 18px var(--color-shadow);
 }
 
 .pki-option,
@@ -138,7 +115,7 @@
 }
 
 .pki-active {
-  background: var(--pki-surface);
+  background: var(--color-surface-2);
 }
 
 .pki-current {
@@ -146,7 +123,7 @@
 }
 
 .pki-empty {
-  color: var(--pki-muted);
+  color: var(--color-text-muted);
 }
 
 /* Types and weight */
@@ -164,36 +141,36 @@
 .pki-type {
   padding: 0.1rem 0.5rem;
   border-radius: 999px;
-  background: var(--pki-type, #888);
-  color: #fff;
+  background: var(--pki-type, var(--color-type-unknown));
+  color: var(--color-type-text);
   font-size: 0.75rem;
   font-weight: 600;
-  text-shadow: 0 1px 1px rgb(0 0 0 / 0.35);
+  text-shadow: 0 1px 1px var(--color-type-text-shadow);
 }
 
 .pki-weight {
-  color: var(--pki-muted);
+  color: var(--color-text-muted);
   font-size: 0.75rem;
 }
 
-.pki-type-normal { --pki-type: #9fa19f; }
-.pki-type-fire { --pki-type: #e62829; }
-.pki-type-water { --pki-type: #2980ef; }
-.pki-type-electric { --pki-type: #d4a800; }
-.pki-type-grass { --pki-type: #3fa129; }
-.pki-type-ice { --pki-type: #3dcef3; }
-.pki-type-fighting { --pki-type: #ff8000; }
-.pki-type-poison { --pki-type: #9141cb; }
-.pki-type-ground { --pki-type: #915121; }
-.pki-type-flying { --pki-type: #81b9ef; }
-.pki-type-psychic { --pki-type: #ef4179; }
-.pki-type-bug { --pki-type: #91a119; }
-.pki-type-rock { --pki-type: #afa981; }
-.pki-type-ghost { --pki-type: #704170; }
-.pki-type-dragon { --pki-type: #5060e1; }
-.pki-type-dark { --pki-type: #624d4e; }
-.pki-type-steel { --pki-type: #60a1b8; }
-.pki-type-fairy { --pki-type: #ef70ef; }
+.pki-type-normal { --pki-type: var(--type-normal); }
+.pki-type-fire { --pki-type: var(--type-fire); }
+.pki-type-water { --pki-type: var(--type-water); }
+.pki-type-electric { --pki-type: var(--type-electric); }
+.pki-type-grass { --pki-type: var(--type-grass); }
+.pki-type-ice { --pki-type: var(--type-ice); }
+.pki-type-fighting { --pki-type: var(--type-fighting); }
+.pki-type-poison { --pki-type: var(--type-poison); }
+.pki-type-ground { --pki-type: var(--type-ground); }
+.pki-type-flying { --pki-type: var(--type-flying); }
+.pki-type-psychic { --pki-type: var(--type-psychic); }
+.pki-type-bug { --pki-type: var(--type-bug); }
+.pki-type-rock { --pki-type: var(--type-rock); }
+.pki-type-ghost { --pki-type: var(--type-ghost); }
+.pki-type-dragon { --pki-type: var(--type-dragon); }
+.pki-type-dark { --pki-type: var(--type-dark); }
+.pki-type-steel { --pki-type: var(--type-steel); }
+.pki-type-fairy { --pki-type: var(--type-fairy); }
 
 /* Tera */
 .pki-tera-row {
@@ -225,7 +202,7 @@
 }
 
 .pki-stats thead th {
-  color: var(--pki-muted);
+  color: var(--color-text-muted);
   font-size: 0.75rem;
   font-weight: 600;
   text-transform: uppercase;
@@ -238,7 +215,7 @@
 }
 
 .pki-base {
-  color: var(--pki-muted);
+  color: var(--color-text-muted);
 }
 
 .pki-final {
@@ -248,12 +225,12 @@
 
 .pki-nature-plus th,
 .pki-nature-plus .pki-final {
-  color: var(--pki-plus);
+  color: var(--color-stat-plus);
 }
 
 .pki-nature-minus th,
 .pki-nature-minus .pki-final {
-  color: var(--pki-minus);
+  color: var(--color-stat-minus);
 }
 
 .pki-boost {
@@ -261,21 +238,21 @@
 }
 
 .pki-boost-up {
-  color: var(--pki-plus);
+  color: var(--color-stat-plus);
 }
 
 .pki-boost-down {
-  color: var(--pki-minus);
+  color: var(--color-stat-minus);
 }
 
 .pki-stats tfoot td {
   padding-top: 0.5rem;
-  color: var(--pki-muted);
+  color: var(--color-text-muted);
   font-size: 0.8rem;
 }
 
 .pki-over {
-  color: var(--pki-warn);
+  color: var(--color-danger);
   font-weight: 600;
 }
 

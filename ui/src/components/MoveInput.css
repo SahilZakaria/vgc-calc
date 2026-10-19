@@ -1,30 +1,12 @@
-.move-input {
-  --mi-border: #c8ccd4;
-  --mi-text: #1d2128;
-  --mi-muted: #687080;
-  --mi-surface: #ffffff;
-  --mi-hover: #eef2fb;
-  --mi-accent: #3060d0;
-  --mi-warn: #a05a00;
+/* Colors come from the shared tokens in src/theme.css. */
 
+.move-input {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
   max-width: 28rem;
-  color: var(--mi-text);
+  color: var(--color-text);
   font-size: 0.9375rem;
-}
-
-@media (prefers-color-scheme: dark) {
-  .move-input {
-    --mi-border: #3a404c;
-    --mi-text: #e4e7ec;
-    --mi-muted: #9aa2b1;
-    --mi-surface: #1b1f26;
-    --mi-hover: #26304a;
-    --mi-accent: #7ea2ff;
-    --mi-warn: #f0b060;
-  }
 }
 
 .move-input__label {
@@ -39,8 +21,8 @@
 .move-input__bp {
   font: inherit;
   color: inherit;
-  background: var(--mi-surface);
-  border: 1px solid var(--mi-border);
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
   border-radius: 6px;
   padding: 0.375rem 0.5rem;
 }
@@ -52,7 +34,7 @@
 
 .move-input__search:focus,
 .move-input__bp:focus {
-  outline: 2px solid var(--mi-accent);
+  outline: 2px solid var(--color-accent);
   outline-offset: -1px;
 }
 
@@ -67,10 +49,10 @@
   margin: 0;
   padding: 0.25rem 0;
   list-style: none;
-  background: var(--mi-surface);
-  border: 1px solid var(--mi-border);
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
   border-radius: 6px;
-  box-shadow: 0 4px 12px rgb(0 0 0 / 0.15);
+  box-shadow: 0 4px 12px var(--color-shadow);
 }
 
 .move-input__option {
@@ -82,13 +64,13 @@
 }
 
 .move-input__option--active {
-  background: var(--mi-hover);
+  background: var(--color-hover);
 }
 
 .move-input__option-meta,
 .move-input__muted,
 .move-input__empty {
-  color: var(--mi-muted);
+  color: var(--color-text-muted);
 }
 
 .move-input__option-meta {
@@ -111,7 +93,7 @@
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--mi-muted);
+  color: var(--color-text-muted);
 }
 
 .move-input__field dd {
@@ -136,7 +118,7 @@
   align-items: center;
   gap: 0.25rem;
   font-size: 0.8125rem;
-  color: var(--mi-muted);
+  color: var(--color-text-muted);
   cursor: pointer;
 }
 
@@ -151,7 +133,7 @@
 
 .move-input__flag {
   padding: 0.0625rem 0.4rem;
-  border: 1px solid var(--mi-border);
+  border: 1px solid var(--color-border);
   border-radius: 999px;
   font-size: 0.8125rem;
 }
@@ -159,9 +141,9 @@
 .move-input__note {
   margin: 0;
   font-size: 0.8125rem;
-  color: var(--mi-muted);
+  color: var(--color-text-muted);
 }
 
 .move-input__note--warn {
-  color: var(--mi-warn);
+  color: var(--color-warn);
 }

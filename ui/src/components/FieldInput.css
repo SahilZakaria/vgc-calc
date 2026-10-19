@@ -1,31 +1,19 @@
-.field-input {
-  --fi-border: #c9ccd3;
-  --fi-muted: #5b6070;
-  --fi-bg: #ffffff;
-  --fi-accent: #3159c4;
+/* Colors come from the shared tokens in src/theme.css. */
 
+.field-input {
   display: flex;
   flex-direction: column;
   gap: 12px;
   font-size: 14px;
-  color: inherit;
-}
-
-@media (prefers-color-scheme: dark) {
-  .field-input {
-    --fi-border: #3a3f4b;
-    --fi-muted: #a3a8b6;
-    --fi-bg: #1b1e25;
-    --fi-accent: #7d9cf0;
-  }
+  color: var(--color-text);
 }
 
 .field-input__group {
   margin: 0;
   padding: 10px 12px 12px;
-  border: 1px solid var(--fi-border);
+  border: 1px solid var(--color-border);
   border-radius: 6px;
-  background: var(--fi-bg);
+  background: var(--color-surface);
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -61,15 +49,15 @@
 }
 
 .field-input__select > span {
-  color: var(--fi-muted);
+  color: var(--color-text-muted);
 }
 
 .field-input__select select {
   font: inherit;
   padding: 3px 6px;
-  border: 1px solid var(--fi-border);
+  border: 1px solid var(--color-border);
   border-radius: 4px;
-  background: var(--fi-bg);
+  background: var(--color-surface);
   color: inherit;
 }
 
@@ -81,7 +69,7 @@
 
 .field-input__ruin {
   padding-top: 8px;
-  border-top: 1px dashed var(--fi-border);
+  border-top: 1px dashed var(--color-border);
 }
 
 .field-input__toggle,
@@ -96,5 +84,5 @@
 .field-input__toggle input,
 .field-input__radio input {
   margin: 0;
-  accent-color: var(--fi-accent);
+  accent-color: var(--color-accent);
 }
