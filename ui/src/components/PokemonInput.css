@@ -256,6 +256,11 @@
   font-weight: 600;
 }
 
+.pki-warn {
+  color: var(--color-warn);
+  font-size: 0.8rem;
+}
+
 @media (max-width: 420px) {
   .pki-grid {
     grid-template-columns: minmax(0, 1fr);

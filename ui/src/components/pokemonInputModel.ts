@@ -15,6 +15,7 @@ import {
   spToEv,
 } from '../../../src/champions/stats';
 import type { Game, Pokemon, StatName, StatTable, TypeName } from '../../../src/types';
+import { legalAbilities, legalItems } from './legalData';
 
 export type BoostStat = keyof Pokemon['statBoosts'];
 export type Status = Pokemon['status'];
@@ -67,7 +68,7 @@ export interface NatureOption {
 
 export interface GameData {
   species: readonly string[];
-  abilities: readonly string[];
+  /** Items obtainable in this game, from @pkmn/dex (see legalData.ts). */
   items: readonly string[];
   natures: readonly NatureOption[];
 }
@@ -99,8 +100,7 @@ export function getGameData(game: Game): GameData {
 
   const data: GameData = {
     species: Array.from(gen.species, (s) => s.name).sort(byName),
-    abilities: Array.from(gen.abilities, (a) => a.name).sort(byName),
-    items: Array.from(gen.items, (i) => i.name).sort(byName),
+    items: legalItems(game),
     natures: natures.sort((a, b) => byName(a.name, b.name)),
   };
   gameDataCache.set(game, data);
@@ -112,14 +112,17 @@ function isTypeName(value: string): value is TypeName {
 }
 
 // Returns the Pokemon with the new species' base stats, types, weight and
-// first listed ability, or null if the species is not in this game's data.
+// first legal ability, or null if the species is not in this game's data.
+// Stats come from @smogon/calc; the ability list from @pkmn/dex. If @pkmn/dex
+// has no ability list for the species in this game, @smogon/calc's single
+// listed ability is used.
 // HP is reset to full because max HP changes with the species.
 export function applySpecies(pokemon: Pokemon, speciesName: string, game: Game): Pokemon | null {
   const species = generation(game).species.get(toID(speciesName));
   if (!species) return null;
 
   const types = species.types.filter(isTypeName);
-  const ability = species.abilities?.[0] ?? pokemon.ability;
+  const ability = legalAbilities(game, species.name)[0]?.name ?? species.abilities?.[0] ?? pokemon.ability;
   return {
     ...pokemon,
     species: species.name,

@@ -9,6 +9,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@pkmn/dex": "0.10.11",
+    "@pkmn/mods": "0.10.11",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },

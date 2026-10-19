@@ -1,14 +1,48 @@
-import { useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 import type { Game, Move, MoveFlags, MoveTarget } from '@vgc/types';
-import { findMove, searchMoves } from './moveData';
+import { cachedLearnset, loadLearnset } from './legalData';
+import { findMove, moveId, searchMoves } from './moveData';
 import './MoveInput.css';
 
 interface MoveInputProps {
   move: Move;
   onChange: (move: Move) => void;
   game: Game;
+  /** The attacking species. Only moves in its learnset for `game` are offered. */
+  species: string;
   label?: string;
+}
+
+type Learnset =
+  | { status: 'loading' }
+  | { status: 'failed' }
+  | { status: 'none' }
+  | { status: 'ready'; moves: ReadonlySet<string> };
+
+// The species' learnset from legalData. Gen 9 learnsets load on demand, so
+// the first render for a species may be 'loading'.
+function useLearnset(game: Game, species: string): Learnset {
+  const [, setVersion] = useState(0);
+  const [failedKey, setFailedKey] = useState<string | null>(null);
+  const key = `${game}:${species}`;
+  const cached = species === '' ? null : cachedLearnset(game, species);
+
+  useEffect(() => {
+    if (species === '' || cachedLearnset(game, species) !== undefined) return;
+    let live = true;
+    loadLearnset(game, species).then(
+      () => live && setVersion((v) => v + 1),
+      () => live && setFailedKey(key),
+    );
+    return () => {
+      live = false;
+    };
+  }, [game, species, key]);
+
+  if (cached === null) return { status: 'none' };
+  if (cached !== undefined) return { status: 'ready', moves: cached };
+  return failedKey === key ? { status: 'failed' } : { status: 'loading' };
 }
 
 const MAX_RESULTS = 50;
@@ -42,7 +76,7 @@ function formatPriority(priority: number): string {
   return priority > 0 ? `+${priority}` : String(priority);
 }
 
-export function MoveInput({ move, onChange, game, label = 'Move' }: MoveInputProps) {
+export function MoveInput({ move, onChange, game, species, label = 'Move' }: MoveInputProps) {
   const baseId = useId();
   const inputId = `${baseId}-input`;
   const listId = `${baseId}-list`;
@@ -53,14 +87,24 @@ export function MoveInput({ move, onChange, game, label = 'Move' }: MoveInputPro
   const [overrideBp, setOverrideBp] = useState(false);
   const listRef = useRef<HTMLUListElement>(null);
 
+  const learnset = useLearnset(game, species);
+  const allowed = learnset.status === 'ready' ? learnset.moves : null;
+
   const isOpen = query !== null;
   const results = useMemo(
-    () => (query === null ? [] : searchMoves(game, query, MAX_RESULTS)),
-    [game, query],
+    () => (query === null || allowed === null ? [] : searchMoves(game, query, MAX_RESULTS, allowed)),
+    [game, query, allowed],
   );
 
   const dataMove = move.name === '' ? undefined : findMove(game, move.name);
   const missingFromGame = move.name !== '' && dataMove === undefined;
+  const notLearnable =
+    !missingFromGame && move.name !== '' && allowed !== null && !allowed.has(moveId(move.name));
+  const speciesLabel = species === '' ? 'this Pokemon' : species;
+  let emptyMessage = 'No matching moves';
+  if (learnset.status === 'loading') emptyMessage = `Loading ${speciesLabel}'s learnset…`;
+  else if (learnset.status === 'failed') emptyMessage = `Couldn't load ${speciesLabel}'s learnset.`;
+  else if (learnset.status === 'none') emptyMessage = `No ${GAME_LABEL[game]} learnset data for ${speciesLabel}.`;
   const powerVaries =
     move.variablePower !== 'none' || (move.category !== 'Status' && dataMove?.basePower === 0);
 
@@ -147,7 +191,7 @@ export function MoveInput({ move, onChange, game, label = 'Move' }: MoveInputPro
           aria-activedescendant={activeOption ? `${listId}-${activeIndex}` : undefined}
           autoComplete="off"
           spellCheck={false}
-          placeholder={`Search ${GAME_LABEL[game]} moves`}
+          placeholder={species === '' ? `Search ${GAME_LABEL[game]} moves` : `Search ${species}'s moves`}
           value={query ?? move.name}
           onChange={(event) => {
             setQuery(event.target.value);
@@ -164,7 +208,7 @@ export function MoveInput({ move, onChange, game, label = 'Move' }: MoveInputPro
         {isOpen && (
           <ul id={listId} ref={listRef} className="move-input__list" role="listbox">
             {results.length === 0 ? (
-              <li className="move-input__empty">No matching moves</li>
+              <li className="move-input__empty">{emptyMessage}</li>
             ) : (
               results.map((option, index) => (
                 <li
@@ -199,6 +243,18 @@ export function MoveInput({ move, onChange, game, label = 'Move' }: MoveInputPro
       {missingFromGame && (
         <p className="move-input__note move-input__note--warn">
           {move.name} is not in the {GAME_LABEL[game]} move data.
+        </p>
+      )}
+
+      {notLearnable && (
+        <p className="move-input__note move-input__note--warn">
+          {species} can't learn {move.name} in {GAME_LABEL[game]}.
+        </p>
+      )}
+
+      {learnset.status === 'none' && (
+        <p className="move-input__note move-input__note--warn">
+          No {GAME_LABEL[game]} learnset data for {speciesLabel}, so no moves can be picked.
         </p>
       )}
 

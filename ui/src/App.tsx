@@ -73,7 +73,12 @@ export function App() {
           </section>
 
           <div className="app-move">
-            <MoveInput game={state.game} move={state.move} onChange={setMove} />
+            <MoveInput
+              game={state.game}
+              species={state.attacker.species}
+              move={state.move}
+              onChange={setMove}
+            />
             <label className="app-check">
               <input
                 type="checkbox"

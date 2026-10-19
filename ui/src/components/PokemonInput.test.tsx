@@ -115,6 +115,29 @@ describe('PokemonInput in both modes', () => {
     expect(html).toContain('class="pki-nature-minus"><th scope="row">SpA');
   });
 
+  // Reference: Bulbapedia. Garchomp: Sand Veil, hidden Rough Skin. Gale Wings
+  // is Talonflame's hidden ability.
+  it.each(['champions', 'gen9'] as const)('%s: offers only the species\' legal abilities', (game) => {
+    const html = render(game);
+    expect(html).toContain('<option value="Sand Veil">Sand Veil</option>');
+    expect(html).toContain('<option value="Rough Skin" selected="">Rough Skin (Hidden)</option>');
+    expect(html).not.toContain('Gale Wings');
+    expect(html).not.toContain('not legal');
+  });
+
+  it('flags an ability the species cannot have', () => {
+    const html = render('champions', { ...GARCHOMP, ability: 'Gale Wings' });
+    expect(html).toContain('<option value="Gale Wings" disabled="" selected="">Gale Wings (not legal)</option>');
+    expect(html).toContain('Garchomp can&#x27;t have Gale Wings in Champions.');
+  });
+
+  // Reference: Bulbapedia. Mega Stones are not in Scarlet/Violet.
+  it('flags an item that is not in the game', () => {
+    const item = { ...GARCHOMP, item: 'Charizardite X' };
+    expect(render('gen9', item)).toContain('Charizardite X is not an item in Scarlet/Violet.');
+    expect(render('champions', item)).not.toContain('is not an item');
+  });
+
   it('lists all seven statuses', () => {
     const html = render('gen9', { ...GARCHOMP, status: 'brn' });
     expect(html).toMatch(/<option value="brn" selected="">Burned<\/option>/);
