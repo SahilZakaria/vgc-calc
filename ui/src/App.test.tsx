@@ -10,12 +10,20 @@ import { App } from './App';
 describe('App', () => {
   const html = renderToStaticMarkup(<App />);
 
-  it('shows the default calc result', () => {
-    // @smogon/calc 0.12.0, Champions doubles: 32+ Atk Garchomp Earthquake
-    // vs. 32 HP / 0 Def Incineroar: 152-182 (75.2 - 90%) -- guaranteed 2HKO.
-    // ResultDisplay prints percents to one decimal.
-    expect(html).toContain('75.2% - 90.0% (guaranteed 2HKO)');
+  it("shows the default calc result, with Incineroar's Intimidate applied", () => {
+    // @smogon/calc 0.12.0, Champions doubles, Incineroar abilityOn: -1 32+ Atk
+    // Garchomp Earthquake vs. 32 HP / 0 Def Incineroar: 102-122 (50.4 - 60.3%)
+    // -- guaranteed 2HKO. ResultDisplay prints percents to one decimal.
+    expect(html).toContain('50.4% - 60.3% (guaranteed 2HKO)');
     expect(html).toContain('Garchomp Earthquake vs. Incineroar');
+  });
+
+  it('explains the Intimidate drop next to the attacker and marks its Atk stage', () => {
+    expect(html).toContain('Incineroar&#x27;s Intimidate: Atk −1');
+    expect(html).toContain('>Ignore</button>');
+    expect(html).toContain('aria-label="Atk boost, includes Incineroar&#x27;s Intimidate"');
+    // The note sits in the attacker's column, before the defender's input.
+    expect(html.indexOf('Incineroar&#x27;s Intimidate: Atk −1')).toBeLessThan(html.indexOf('aria-label="Defender"'));
   });
 
   it('shows the reverse calc result alongside it', () => {
@@ -25,7 +33,7 @@ describe('App', () => {
     expect(html).toContain('21.3% - 25.6% (possible 4HKO)');
     expect(html).toContain('Incineroar Flare Blitz vs. Garchomp');
     // Forward first, reverse second.
-    expect(html.indexOf('75.2% - 90.0%')).toBeLessThan(html.indexOf('21.3% - 25.6%'));
+    expect(html.indexOf('50.4% - 60.3%')).toBeLessThan(html.indexOf('21.3% - 25.6%'));
   });
 
   it("gives each direction its own move picker, labeled with the attacking Pokemon", () => {

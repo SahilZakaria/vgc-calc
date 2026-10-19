@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
+  editPokemon,
+  effectivePokemon,
   forwardContext,
   initialState,
   isSpread,
   matchupLabel,
   reverseContext,
   runCalc,
+  setManualStages,
+  stageEffects,
   switchGame,
   type CalcState,
 } from './appState';
@@ -13,13 +17,31 @@ import {
 // Reference rolls from @smogon/calc 0.12.0 (the repo's oracle), level 50:
 // Adamant 252 Atk EV / 32 Atk SP Garchomp Earthquake vs. Hardy 252 HP EV /
 // 32 HP SP Incineroar, no items, Rough Skin vs. Intimidate.
+// With Incineroar's Intimidate applied (their abilityOn: true, so Garchomp is
+// at -1 Atk):
+//   Champions (gen 0), doubles: "102-122 (50.4 - 60.3%) -- guaranteed 2HKO"
+//   Champions (gen 0), singles: "138-164 (68.3 - 81.1%) -- guaranteed 2HKO"
+//   Scarlet/Violet (gen 9), doubles: same rolls as Champions doubles.
+// Without it (abilityOn false, Garchomp at +0, or Garchomp with Clear Body):
 //   Champions (gen 0), doubles: "152-182 (75.2 - 90%) -- guaranteed 2HKO"
 //   Champions (gen 0), singles: "206-246 (101.9 - 121.7%) -- guaranteed OHKO"
-//   Scarlet/Violet (gen 9), doubles: same rolls as Champions doubles.
-// Incineroar's max HP is 202 in all three.
-const REF_DOUBLES = [152, 156, 158, 158, 162, 162, 164, 168, 168, 170, 170, 174, 176, 176, 180, 182];
-const REF_SINGLES = [206, 210, 212, 216, 216, 218, 222, 224, 228, 230, 230, 234, 236, 240, 242, 246];
+// Garchomp with Defiant (Intimidate on: +1 Atk), or entered at +2 Atk with
+// Intimidate on: "230-272 (113.8 - 134.6%) -- guaranteed OHKO".
+// Garchomp at +2 Atk with Intimidate off: "306-362 (151.4 - 179.2%)".
+// Incineroar's max HP is 202 in every case.
+const REF_DOUBLES = [102, 104, 104, 108, 108, 108, 110, 110, 114, 114, 114, 116, 116, 120, 120, 122];
+const REF_SINGLES = [138, 140, 140, 144, 144, 146, 150, 150, 152, 152, 156, 156, 158, 158, 162, 164];
+const REF_DOUBLES_UNINTIMIDATED = [152, 156, 158, 158, 162, 162, 164, 168, 168, 170, 170, 174, 176, 176, 180, 182];
+const REF_SINGLES_UNINTIMIDATED = [206, 210, 212, 216, 216, 218, 222, 224, 228, 230, 230, 234, 236, 240, 242, 246];
+const REF_DOUBLES_PLUS_1 = [230, 234, 236, 240, 240, 242, 246, 248, 252, 254, 258, 260, 264, 266, 270, 272];
+const REF_DOUBLES_PLUS_2 = [306, 312, 314, 318, 320, 324, 330, 332, 336, 338, 342, 348, 350, 354, 356, 362];
 const REF_MAX_HP = 202;
+
+// Incineroar at -1 Atk (Garchomp's Mirror Armor bouncing its Intimidate):
+// Flare Blitz vs. 0 HP / 0 Def Garchomp, gen 0 doubles, "27-32 (14.7 - 17.4%)".
+// @smogon/calc does not model Mirror Armor, so this is their result for a -1
+// Atk Incineroar entered by hand with Intimidate off.
+const REF_REVERSE_MINUS_1 = [27, 27, 27, 27, 28, 28, 29, 29, 29, 30, 30, 30, 30, 31, 31, 32];
 
 // Reverse direction, same reference and sets: Hardy 0 Atk Incineroar Flare
 // Blitz vs. Adamant 0 HP / 0 Def Garchomp, level 50, gen 0 and gen 9 alike.
@@ -138,7 +160,7 @@ describe('forwardContext', () => {
     const state = initialState();
     expect(forwardContext(state)).toEqual({
       game: state.game,
-      attacker: state.attacker,
+      attacker: { ...state.attacker, statBoosts: { ...state.attacker.statBoosts, atk: -1 } },
       defender: state.defender,
       move: state.move,
       field: state.field,
@@ -163,8 +185,10 @@ describe('reverseContext', () => {
 
   it("swaps the Pokemon and uses the defender's move", () => {
     const reverse = reverseContext(state);
-    expect(reverse.attacker).toBe(state.defender);
-    expect(reverse.defender).toBe(state.attacker);
+    expect(reverse.attacker).toEqual(state.defender);
+    // Still under Incineroar's Intimidate when it is the one being hit.
+    expect(reverse.defender).toEqual(effectivePokemon(state, 'attacker'));
+    expect(reverse.defender.statBoosts.atk).toBe(-1);
     expect(reverse.move).toBe(state.reverseMove);
     expect(matchupLabel(reverse)).toBe('Incineroar Flare Blitz vs. Garchomp');
     expect(isSpread(reverse)).toBe(false);
@@ -195,5 +219,105 @@ describe('reverseContext', () => {
     expect(rollsOf(runCalc(forwardContext(reverseCrit)))).toEqual(REF_DOUBLES);
     const forwardCrit = { ...state, isCritical: true };
     expect(rollsOf(runCalc(reverseContext(forwardCrit)))).toEqual(REF_REVERSE);
+  });
+});
+
+describe('Intimidate', () => {
+  const state = initialState();
+  const withAbility = (base: CalcState, slot: 'attacker' | 'defender', ability: string): CalcState => ({
+    ...base,
+    [slot]: { ...base[slot], ability },
+  });
+
+  it("applies Incineroar's Intimidate to Garchomp automatically and says so", () => {
+    expect(stageEffects(state)).toEqual([
+      { slot: 'attacker', source: "Incineroar's Intimidate", cause: null, changes: { atk: -1 }, overridden: [] },
+    ]);
+    // The entered stage stays 0; only the effective Pokemon is at -1.
+    expect(state.attacker.statBoosts.atk).toBe(0);
+    expect(effectivePokemon(state, 'attacker').statBoosts.atk).toBe(-1);
+    expect(rollsOf(runCalc(forwardContext(state)))).toEqual(REF_DOUBLES);
+  });
+
+  it('Ignore stops applying it; Apply brings it back', () => {
+    const ignored = setManualStages(state, 'attacker', ['atk'], true);
+    expect(stageEffects(ignored)[0]?.overridden).toEqual(['atk']);
+    expect(rollsOf(runCalc(forwardContext(ignored)))).toEqual(REF_DOUBLES_UNINTIMIDATED);
+    expect(rollsOf(runCalc(forwardContext({ ...ignored, field: { ...ignored.field, isDoubles: false } })))).toEqual(
+      REF_SINGLES_UNINTIMIDATED,
+    );
+    const applied = setManualStages(ignored, 'attacker', ['atk'], false);
+    expect(applied.manualStages.attacker).toEqual([]);
+    expect(rollsOf(runCalc(forwardContext(applied)))).toEqual(REF_DOUBLES);
+  });
+
+  it('a stage picked by hand overrides it, and Apply adds it on top of that stage', () => {
+    const shown = effectivePokemon(state, 'attacker');
+    const picked = editPokemon(state, 'attacker', { ...shown, statBoosts: { ...shown.statBoosts, atk: 2 } });
+    expect(picked.attacker.statBoosts.atk).toBe(2);
+    expect(picked.manualStages.attacker).toEqual(['atk']);
+    expect(rollsOf(runCalc(forwardContext(picked)))).toEqual(REF_DOUBLES_PLUS_2);
+    const applied = setManualStages(picked, 'attacker', ['atk'], false);
+    expect(effectivePokemon(applied, 'attacker').statBoosts.atk).toBe(1);
+    expect(rollsOf(runCalc(forwardContext(applied)))).toEqual(REF_DOUBLES_PLUS_1);
+  });
+
+  it('other edits keep the automatic change out of the stored stages', () => {
+    const shown = effectivePokemon(state, 'attacker');
+    const edited = editPokemon(state, 'attacker', { ...shown, status: 'par' });
+    expect(edited.attacker.status).toBe('par');
+    expect(edited.attacker.statBoosts.atk).toBe(0);
+    expect(edited.manualStages.attacker).toEqual([]);
+    expect(effectivePokemon(edited, 'attacker').statBoosts.atk).toBe(-1);
+  });
+
+  it('a blocking ability shows the block and leaves the stage alone', () => {
+    const blocked = withAbility(state, 'attacker', 'Clear Body');
+    expect(stageEffects(blocked)).toEqual([
+      { slot: 'attacker', source: "Incineroar's Intimidate", cause: 'Clear Body', changes: {}, overridden: [] },
+    ]);
+    expect(rollsOf(runCalc(forwardContext(blocked)))).toEqual(REF_DOUBLES_UNINTIMIDATED);
+  });
+
+  it('Defiant turns it into +1 Atk', () => {
+    const defiant = withAbility(state, 'attacker', 'Defiant');
+    expect(stageEffects(defiant)[0]?.changes).toEqual({ atk: 1 });
+    expect(rollsOf(runCalc(forwardContext(defiant)))).toEqual(REF_DOUBLES_PLUS_1);
+  });
+
+  it('Competitive keeps the Atk drop and adds +2 SpA', () => {
+    const competitive = withAbility(state, 'attacker', 'Competitive');
+    expect(effectivePokemon(competitive, 'attacker').statBoosts).toMatchObject({ atk: -1, spa: 2 });
+  });
+
+  it('Mirror Armor bounces it onto Incineroar instead', () => {
+    const mirror = withAbility(state, 'attacker', 'Mirror Armor');
+    expect(stageEffects(mirror)).toEqual([
+      { slot: 'attacker', source: "Incineroar's Intimidate", cause: 'Mirror Armor', changes: {}, overridden: [] },
+      { slot: 'defender', source: "Garchomp's Mirror Armor", cause: null, changes: { atk: -1 }, overridden: [] },
+    ]);
+    expect(rollsOf(runCalc(forwardContext(mirror)))).toEqual(REF_DOUBLES_UNINTIMIDATED);
+    expect(rollsOf(runCalc(reverseContext(mirror)))).toEqual(REF_REVERSE_MINUS_1);
+  });
+
+  it('goes away when the ability is changed or suppressed', () => {
+    expect(stageEffects(withAbility(state, 'defender', 'Blaze'))).toEqual([]);
+    const suppressed = { ...state, defender: { ...state.defender, abilitySuppressed: true } };
+    expect(stageEffects(suppressed)).toEqual([]);
+    expect(rollsOf(runCalc(forwardContext(suppressed)))).toEqual(REF_DOUBLES_UNINTIMIDATED);
+  });
+
+  it('works in both directions when both Pokemon have Intimidate', () => {
+    const both = withAbility(state, 'attacker', 'Intimidate');
+    expect(stageEffects(both).map((e) => e.slot)).toEqual(['defender', 'attacker']);
+    expect(effectivePokemon(both, 'defender').statBoosts.atk).toBe(-1);
+    expect(effectivePokemon(both, 'attacker').statBoosts.atk).toBe(-1);
+  });
+
+  it('keeps hand-set stages across a game switch', () => {
+    const ignored = setManualStages(state, 'attacker', ['atk'], true);
+    const gen9 = switchGame(ignored, 'gen9');
+    expect(gen9.manualStages.attacker).toEqual(['atk']);
+    expect(rollsOf(runCalc(forwardContext(gen9)))).toEqual(REF_DOUBLES_UNINTIMIDATED);
   });
 });

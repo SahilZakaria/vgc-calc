@@ -5,18 +5,27 @@
 // can load this file.
 
 import { calculate } from '../../src/calc/calculate';
+import { applyStageChanges, resolveIntimidate, type StageChanges } from '../../src/calc/intimidate';
 import { spToEv } from '../../src/champions/stats';
 import type { DamageContext, DamageResult, FieldState, Game, Move, Pokemon, SideState, StatTable } from '../../src/types';
 import { findMove } from './components/moveData';
-import { applySpecies, normalizeForGame } from './components/pokemonInputModel';
+import { applySpecies, BOOST_STATS, normalizeForGame, type BoostStat } from './components/pokemonInputModel';
+
+export type Slot = 'attacker' | 'defender';
 
 // Everything the calculator screen edits. The DamageContext fields are the
 // forward hit (attacker's move into defender). The reverse hit (defender's
 // move into attacker) shares the Pokemon and field and adds its own move and
 // crit flag. Declared here rather than in src/types.ts, which is off limits.
+//
+// `attacker.statBoosts` and `defender.statBoosts` hold the stages the user
+// entered. Switch-in effects (Intimidate) are added on top by
+// effectivePokemon, except on the stats listed in `manualStages`: the user
+// set those by hand, and they are used exactly as entered.
 export interface CalcState extends DamageContext {
   reverseMove: Move;
   reverseIsCritical: boolean;
+  manualStages: Record<Slot, readonly BoostStat[]>;
 }
 
 const table = (hp: number, atk: number, def: number, spa: number, spd: number, spe: number): StatTable => ({
@@ -110,6 +119,7 @@ export function initialState(): CalcState {
     isCritical: false,
     reverseMove: requireMove(game, 'Flare Blitz'),
     reverseIsCritical: false,
+    manualStages: { attacker: [], defender: [] },
   };
 }
 
@@ -133,10 +143,118 @@ export function switchGame(state: CalcState, game: Game): CalcState {
   };
 }
 
-// The attacker's move into the defender.
+// ---------------------------------------------------------------------------
+// Switch-in stage changes
+// ---------------------------------------------------------------------------
+
+// One automatic stage change on one Pokemon and what caused it, so the UI can
+// show why a number moved and let the user turn it off.
+export interface StageEffect {
+  /** The Pokemon whose stages change. */
+  slot: Slot;
+  /** What triggered it, e.g. "Incineroar's Intimidate". */
+  source: string;
+  /** The ability or item that blocked or changed it, e.g. "Defiant". */
+  cause: string | null;
+  /** The stage changes the effect makes. Empty when it was blocked. */
+  changes: StageChanges;
+  /** Stats in `changes` the user set by hand; those changes are not applied. */
+  overridden: BoostStat[];
+}
+
+const OTHER: Record<Slot, Slot> = { attacker: 'defender', defender: 'attacker' };
+
+export const changedStats = (changes: StageChanges): BoostStat[] =>
+  BOOST_STATS.filter((stat) => (changes[stat] ?? 0) !== 0);
+
+// Every Intimidate on the field, in both directions, as it lands on each
+// Pokemon. Resolved against the stages the user entered.
+export function stageEffects(state: CalcState): StageEffect[] {
+  const effect = (slot: Slot, source: string, cause: string | null, changes: StageChanges): StageEffect => ({
+    slot,
+    source,
+    cause,
+    changes,
+    overridden: changedStats(changes).filter((stat) => state.manualStages[slot].includes(stat)),
+  });
+  const effects: StageEffect[] = [];
+  for (const user of ['attacker', 'defender'] as const) {
+    const foe = OTHER[user];
+    const result = resolveIntimidate(state[user], state[foe]);
+    if (!result) continue;
+    effects.push(effect(foe, `${state[user].species}'s Intimidate`, result.cause, result.target));
+    if (changedStats(result.source).length > 0) {
+      effects.push(effect(user, `${state[foe].species}'s Mirror Armor`, null, result.source));
+    }
+  }
+  return effects;
+}
+
+// The Pokemon as the calc sees it: the entered stages plus every automatic
+// change on a stat the user has not set by hand.
+export function effectivePokemon(state: CalcState, slot: Slot): Pokemon {
+  const pokemon = state[slot];
+  let boosts = pokemon.statBoosts;
+  for (const effect of stageEffects(state)) {
+    if (effect.slot !== slot) continue;
+    const applied: StageChanges = {};
+    for (const stat of changedStats(effect.changes)) {
+      if (!effect.overridden.includes(stat)) applied[stat] = effect.changes[stat];
+    }
+    boosts = applyStageChanges(boosts, applied);
+  }
+  return { ...pokemon, statBoosts: boosts };
+}
+
+// Applies an edit from PokemonInput, which shows and emits the effective
+// Pokemon. A stage that differs from what was shown was picked by the user:
+// it is stored as picked and marked as set by hand. Every other stage keeps
+// its entered value, so an automatic change is never stored.
+export function editPokemon(state: CalcState, slot: Slot, next: Pokemon): CalcState {
+  const shown = effectivePokemon(state, slot);
+  const manual = new Set(state.manualStages[slot]);
+  const statBoosts = { ...next.statBoosts };
+  for (const stat of BOOST_STATS) {
+    if (next.statBoosts[stat] !== shown.statBoosts[stat]) manual.add(stat);
+    else statBoosts[stat] = state[slot].statBoosts[stat];
+  }
+  return {
+    ...state,
+    [slot]: { ...next, statBoosts },
+    manualStages: { ...state.manualStages, [slot]: BOOST_STATS.filter((stat) => manual.has(stat)) },
+  };
+}
+
+// manual true: automatic changes stop applying to these stats and the entered
+// stage is used as is. manual false: automatic changes are added on top of
+// the entered stage again.
+export function setManualStages(state: CalcState, slot: Slot, stats: readonly BoostStat[], manual: boolean): CalcState {
+  const current = new Set(state.manualStages[slot]);
+  for (const stat of stats) {
+    if (manual) current.add(stat);
+    else current.delete(stat);
+  }
+  return {
+    ...state,
+    manualStages: { ...state.manualStages, [slot]: BOOST_STATS.filter((stat) => current.has(stat)) },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Damage contexts
+// ---------------------------------------------------------------------------
+
+// The attacker's move into the defender, with switch-in stage changes applied.
 export function forwardContext(state: CalcState): DamageContext {
-  const { game, attacker, defender, move, field, isCritical } = state;
-  return { game, attacker, defender, move, field, isCritical };
+  const { game, move, field, isCritical } = state;
+  return {
+    game,
+    attacker: effectivePokemon(state, 'attacker'),
+    defender: effectivePokemon(state, 'defender'),
+    move,
+    field,
+    isCritical,
+  };
 }
 
 // The defender's move into the attacker. The two Pokemon trade roles, and so
@@ -148,8 +266,8 @@ export function reverseContext(state: CalcState): DamageContext {
   const { field } = state;
   return {
     game: state.game,
-    attacker: state.defender,
-    defender: state.attacker,
+    attacker: effectivePokemon(state, 'defender'),
+    defender: effectivePokemon(state, 'attacker'),
     move: state.reverseMove,
     field: { ...field, attackerSide: field.defenderSide, defenderSide: field.attackerSide },
     isCritical: state.reverseIsCritical,

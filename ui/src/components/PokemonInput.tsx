@@ -38,6 +38,12 @@ export interface PokemonInputProps {
   game: Game;
   /** Heading shown above the fields, e.g. "Attacker". */
   label?: string;
+  /**
+   * Stats whose shown stage includes an automatic change, mapped to what
+   * caused it (e.g. "Incineroar's Intimidate"). Those boost selects are
+   * marked so the user can see the number is not just what they entered.
+   */
+  autoStages?: Partial<Record<BoostStat, string>>;
 }
 
 const BOOST_VALUES: readonly number[] = Array.from(
@@ -58,7 +64,7 @@ const parseInput = (raw: string): number => (raw.trim() === '' ? 0 : Number(raw)
  * 31 IVs and Tera off. The component does not emit on its own when `game`
  * changes; the parent owns that conversion.
  */
-export function PokemonInput({ pokemon, onChange, game, label }: PokemonInputProps) {
+export function PokemonInput({ pokemon, onChange, game, label, autoStages }: PokemonInputProps) {
   const id = useId();
   // Legal abilities and items come from dex data that loads after first
   // paint. Until then the lists are empty, so nothing is flagged as illegal.
@@ -296,6 +302,7 @@ export function PokemonInput({ pokemon, onChange, game, label }: PokemonInputPro
                     <BoostSelect
                       stat={stat}
                       value={shown.statBoosts[stat]}
+                      autoReason={autoStages?.[stat]}
                       onChange={(n) => emit(setBoost(shown, stat, n))}
                     />
                   )}
@@ -326,25 +333,37 @@ export function PokemonInput({ pokemon, onChange, game, label }: PokemonInputPro
 function BoostSelect({
   stat,
   value,
+  autoReason,
   onChange,
 }: {
   stat: BoostStat;
   value: number;
+  /** Set when the shown stage includes an automatic change. */
+  autoReason?: string;
   onChange: (n: number) => void;
 }) {
+  const direction = value > 0 ? ' pki-boost-up' : value < 0 ? ' pki-boost-down' : '';
   return (
-    <select
-      className={`pki-input pki-boost${value > 0 ? ' pki-boost-up' : value < 0 ? ' pki-boost-down' : ''}`}
-      aria-label={`${STAT_LABELS[stat]} boost`}
-      value={value}
-      onChange={(e) => onChange(Number(e.target.value))}
-    >
-      {BOOST_VALUES.map((n) => (
-        <option key={n} value={n}>
-          {formatBoost(n)}
-        </option>
-      ))}
-    </select>
+    <span className="pki-boost-cell">
+      <select
+        className={`pki-input pki-boost${direction}${autoReason ? ' pki-boost-auto' : ''}`}
+        aria-label={autoReason ? `${STAT_LABELS[stat]} boost, includes ${autoReason}` : `${STAT_LABELS[stat]} boost`}
+        title={autoReason ? `Includes ${autoReason}. Pick a stage to set it by hand.` : undefined}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+      >
+        {BOOST_VALUES.map((n) => (
+          <option key={n} value={n}>
+            {formatBoost(n)}
+          </option>
+        ))}
+      </select>
+      {autoReason && (
+        <span className="pki-auto" aria-hidden="true" title={autoReason}>
+          auto
+        </span>
+      )}
+    </span>
   );
 }
 

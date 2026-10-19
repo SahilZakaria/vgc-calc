@@ -142,6 +142,22 @@ describe('PokemonInput in both modes', () => {
     expect(render('champions', item)).not.toContain('is not an item');
   });
 
+  it('marks a boost that includes an automatic change, and only that one', () => {
+    const html = renderToStaticMarkup(
+      <PokemonInput
+        game="champions"
+        pokemon={GARCHOMP}
+        onChange={() => {}}
+        autoStages={{ atk: "Incineroar's Intimidate" }}
+      />,
+    );
+    expect(html).toContain('aria-label="Atk boost, includes Incineroar&#x27;s Intimidate"');
+    expect(html).toContain('pki-boost-auto');
+    expect(html.match(/pki-boost-auto/g)).toHaveLength(1);
+    expect(html).toContain('aria-label="Def boost"');
+    expect(render('champions')).not.toContain('pki-boost-auto');
+  });
+
   it('lists all seven statuses', () => {
     const html = render('gen9', { ...GARCHOMP, status: 'brn' });
     expect(html).toMatch(/<option value="brn" selected="">Burned<\/option>/);

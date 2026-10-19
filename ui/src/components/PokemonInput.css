@@ -245,6 +245,24 @@
   color: var(--color-stat-minus);
 }
 
+.pki-boost-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* A stage that includes an automatic change (Intimidate). */
+.pki-boost-auto {
+  border-color: var(--color-accent);
+}
+
+.pki-auto {
+  color: var(--color-accent);
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
 .pki-stats tfoot td {
   padding-top: 0.5rem;
   color: var(--color-text-muted);
