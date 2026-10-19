@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { initialState, isSpread, matchupLabel, runCalc, switchGame } from './appState';
+import {
+  forwardContext,
+  initialState,
+  isSpread,
+  matchupLabel,
+  reverseContext,
+  runCalc,
+  switchGame,
+  type CalcState,
+} from './appState';
 
 // Reference rolls from @smogon/calc 0.12.0 (the repo's oracle), level 50:
 // Adamant 252 Atk EV / 32 Atk SP Garchomp Earthquake vs. Hardy 252 HP EV /
@@ -11,6 +20,18 @@ import { initialState, isSpread, matchupLabel, runCalc, switchGame } from './app
 const REF_DOUBLES = [152, 156, 158, 158, 162, 162, 164, 168, 168, 170, 170, 174, 176, 176, 180, 182];
 const REF_SINGLES = [206, 210, 212, 216, 216, 218, 222, 224, 228, 230, 230, 234, 236, 240, 242, 246];
 const REF_MAX_HP = 202;
+
+// Reverse direction, same reference and sets: Hardy 0 Atk Incineroar Flare
+// Blitz vs. Adamant 0 HP / 0 Def Garchomp, level 50, gen 0 and gen 9 alike.
+//   doubles (and singles; single target): "39-47 (21.3 - 25.6%) -- 0.7% chance to 4HKO"
+//   Reflect on Garchomp's side: "26-31 (14.2 - 16.9%)"
+//   Helping Hand on Incineroar's side: "59-70 (32.2 - 38.2%)"
+//   critical hit: "59-70 (32.2 - 38.2%)"
+// Garchomp's max HP is 183.
+const REF_REVERSE = [39, 40, 40, 41, 42, 42, 42, 42, 43, 44, 44, 45, 45, 45, 46, 47];
+const REF_REVERSE_REFLECT = [26, 27, 27, 27, 28, 28, 28, 28, 29, 29, 29, 30, 30, 30, 31, 31];
+const REF_REVERSE_BOOSTED = [59, 60, 60, 61, 62, 63, 63, 64, 65, 66, 66, 67, 68, 69, 69, 70];
+const REF_REVERSE_MAX_HP = 183;
 
 function rollsOf(outcome: ReturnType<typeof runCalc>): number[] {
   if (!outcome.ok) throw new Error(outcome.error);
@@ -26,6 +47,9 @@ describe('initialState', () => {
     expect(state.attacker.species).toBe('Garchomp');
     expect(state.defender.species).toBe('Incineroar');
     expect(state.move.name).toBe('Earthquake');
+    expect(state.reverseMove.name).toBe('Flare Blitz');
+    expect(state.isCritical).toBe(false);
+    expect(state.reverseIsCritical).toBe(false);
   });
 
   it('builds Champions sets: level 50, 31 IVs, 32 SP stored as 252 EVs', () => {
@@ -40,13 +64,13 @@ describe('initialState', () => {
   });
 
   it('matches the @smogon/calc rolls in doubles', () => {
-    const outcome = runCalc(state);
+    const outcome = runCalc(forwardContext(state));
     expect(rollsOf(outcome)).toEqual(REF_DOUBLES);
     expect(outcome.ok && outcome.result.defenderMaxHp).toBe(REF_MAX_HP);
   });
 
   it('matches the @smogon/calc rolls in singles', () => {
-    expect(rollsOf(runCalc({ ...state, field: { ...state.field, isDoubles: false } }))).toEqual(REF_SINGLES);
+    expect(rollsOf(runCalc(forwardContext({ ...state, field: { ...state.field, isDoubles: false } })))).toEqual(REF_SINGLES);
   });
 
   it('labels the matchup and flags the spread hit', () => {
@@ -67,7 +91,9 @@ describe('switchGame', () => {
     expect(gen9.game).toBe('gen9');
     expect(gen9.attacker.evs.atk).toBe(252);
     expect(gen9.move.name).toBe('Earthquake');
-    expect(rollsOf(runCalc(gen9))).toEqual(REF_DOUBLES);
+    expect(rollsOf(runCalc(forwardContext(gen9)))).toEqual(REF_DOUBLES);
+    expect(gen9.reverseMove.name).toBe('Flare Blitz');
+    expect(rollsOf(runCalc(reverseContext(gen9)))).toEqual(REF_REVERSE);
   });
 
   it('to Champions forces level 50, 31 IVs, SP-exact EVs and no Tera', () => {
@@ -94,13 +120,80 @@ describe('switchGame', () => {
     const state = initialState();
     const made = { ...state, move: { ...state.move, name: 'Not A Real Move' } };
     expect(switchGame(made, 'gen9').move).toBe(made.move);
+    const reverseMade = { ...state, reverseMove: { ...state.reverseMove, name: 'Not A Real Move' } };
+    expect(switchGame(reverseMade, 'gen9').reverseMove).toBe(reverseMade.reverseMove);
   });
 });
 
 describe('runCalc', () => {
   it('reports an error instead of throwing on an unknown nature', () => {
     const state = initialState();
-    const outcome = runCalc({ ...state, attacker: { ...state.attacker, nature: 'Nonsense' } });
+    const outcome = runCalc(forwardContext({ ...state, attacker: { ...state.attacker, nature: 'Nonsense' } }));
     expect(outcome.ok).toBe(false);
+  });
+});
+
+describe('forwardContext', () => {
+  it('is the attacker, defender, move, field and crit flag, without the reverse fields', () => {
+    const state = initialState();
+    expect(forwardContext(state)).toEqual({
+      game: state.game,
+      attacker: state.attacker,
+      defender: state.defender,
+      move: state.move,
+      field: state.field,
+      isCritical: state.isCritical,
+    });
+  });
+});
+
+describe('reverseContext', () => {
+  const state = initialState();
+
+  function withSides(base: CalcState, left: Partial<CalcState['field']['attackerSide']>, right: Partial<CalcState['field']['defenderSide']>): CalcState {
+    return {
+      ...base,
+      field: {
+        ...base.field,
+        attackerSide: { ...base.field.attackerSide, ...left },
+        defenderSide: { ...base.field.defenderSide, ...right },
+      },
+    };
+  }
+
+  it("swaps the Pokemon and uses the defender's move", () => {
+    const reverse = reverseContext(state);
+    expect(reverse.attacker).toBe(state.defender);
+    expect(reverse.defender).toBe(state.attacker);
+    expect(reverse.move).toBe(state.reverseMove);
+    expect(matchupLabel(reverse)).toBe('Incineroar Flare Blitz vs. Garchomp');
+    expect(isSpread(reverse)).toBe(false);
+  });
+
+  it('matches the @smogon/calc rolls in doubles and singles', () => {
+    const outcome = runCalc(reverseContext(state));
+    expect(rollsOf(outcome)).toEqual(REF_REVERSE);
+    expect(outcome.ok && outcome.result.defenderMaxHp).toBe(REF_REVERSE_MAX_HP);
+    expect(rollsOf(runCalc(reverseContext({ ...state, field: { ...state.field, isDoubles: false } })))).toEqual(REF_REVERSE);
+  });
+
+  it("applies Reflect on the attacker's side to the reverse hit only", () => {
+    const reflected = withSides(state, { reflect: true }, {});
+    expect(rollsOf(runCalc(reverseContext(reflected)))).toEqual(REF_REVERSE_REFLECT);
+    expect(rollsOf(runCalc(forwardContext(reflected)))).toEqual(REF_DOUBLES);
+  });
+
+  it("applies Helping Hand on the defender's side to the reverse hit only", () => {
+    const helped = withSides(state, {}, { helpingHand: true });
+    expect(rollsOf(runCalc(reverseContext(helped)))).toEqual(REF_REVERSE_BOOSTED);
+    expect(rollsOf(runCalc(forwardContext(helped)))).toEqual(REF_DOUBLES);
+  });
+
+  it('keeps a separate crit flag for each direction', () => {
+    const reverseCrit = { ...state, reverseIsCritical: true };
+    expect(rollsOf(runCalc(reverseContext(reverseCrit)))).toEqual(REF_REVERSE_BOOSTED);
+    expect(rollsOf(runCalc(forwardContext(reverseCrit)))).toEqual(REF_DOUBLES);
+    const forwardCrit = { ...state, isCritical: true };
+    expect(rollsOf(runCalc(reverseContext(forwardCrit)))).toEqual(REF_REVERSE);
   });
 });
