@@ -24,7 +24,13 @@ import {
   spreadValue,
   type BoostStat,
 } from './pokemonInputModel';
+import { legalAbilities } from './legalData';
 import './PokemonInput.css';
+
+const GAME_LABEL: Record<Game, string> = {
+  champions: 'Champions',
+  gen9: 'Scarlet/Violet',
+};
 
 export interface PokemonInputProps {
   pokemon: Pokemon;
@@ -60,6 +66,8 @@ export function PokemonInput({ pokemon, onChange, game, label }: PokemonInputPro
   const limits = spreadLimits(shown, game);
   const stats = finalStats(shown, game);
   const nature = data.natures.find((n) => n.name === shown.nature);
+  const abilities = legalAbilities(game, shown.species);
+  const abilityLegal = abilities.some((a) => a.name === shown.ability);
 
   const emit = (next: Pokemon) => onChange(normalizeForGame(next, game));
 
@@ -137,12 +145,33 @@ export function PokemonInput({ pokemon, onChange, game, label }: PokemonInputPro
           </select>
         </label>
 
-        <SearchSelect
-          label="Ability"
-          value={shown.ability}
-          options={data.abilities}
-          onSelect={(ability) => ability !== null && emit({ ...shown, ability })}
-        />
+        <label className="pki-field">
+          <span className="pki-label">Ability</span>
+          <select
+            className="pki-input"
+            value={shown.ability}
+            onChange={(e) => emit({ ...shown, ability: e.target.value })}
+          >
+            {/* Keeps the select controlled when the current ability is not legal. */}
+            {!abilityLegal && (
+              <option value={shown.ability} disabled>
+                {shown.ability ? `${shown.ability} (not legal)` : '—'}
+              </option>
+            )}
+            {abilities.map((a) => (
+              <option key={a.name} value={a.name}>
+                {a.hidden ? `${a.name} (Hidden)` : a.name}
+              </option>
+            ))}
+          </select>
+          {!abilityLegal && shown.ability && (
+            <span className="pki-warn" role="note">
+              {abilities.length === 0
+                ? `No ${GAME_LABEL[game]} ability data for ${shown.species}.`
+                : `${shown.species} can't have ${shown.ability} in ${GAME_LABEL[game]}.`}
+            </span>
+          )}
+        </label>
 
         <SearchSelect
           label="Item"
@@ -150,6 +179,11 @@ export function PokemonInput({ pokemon, onChange, game, label }: PokemonInputPro
           options={data.items}
           noneLabel="No item"
           onSelect={(item) => emit({ ...shown, item })}
+          warning={
+            shown.item !== null && !data.items.includes(shown.item)
+              ? `${shown.item} is not an item in ${GAME_LABEL[game]}.`
+              : undefined
+          }
         />
 
         <label className="pki-field">
@@ -319,11 +353,13 @@ interface SearchSelectProps {
   /** When set, offers a first option that selects null. */
   noneLabel?: string;
   className?: string;
+  /** Shown under the input, e.g. when the current value is not legal. */
+  warning?: string;
 }
 
 // Text input that filters a long option list (combobox pattern). Typing only
 // changes the local query; the value changes when an option is picked.
-function SearchSelect({ label, value, options, onSelect, noneLabel, className }: SearchSelectProps) {
+function SearchSelect({ label, value, options, onSelect, noneLabel, className, warning }: SearchSelectProps) {
   const id = useId();
   const listId = `${id}-list`;
   const [query, setQuery] = useState<string | null>(null);
@@ -425,6 +461,11 @@ function SearchSelect({ label, value, options, onSelect, noneLabel, className }:
             </li>
           ))}
         </ul>
+      )}
+      {warning && (
+        <span className="pki-warn" role="note">
+          {warning}
+        </span>
       )}
     </div>
   );

@@ -70,6 +70,13 @@ describe('applySpecies', () => {
     expect(p.teraType).toBe('Fire');
   });
 
+  // Reference: Bulbapedia ability slots. Incineroar: Blaze, hidden
+  // Intimidate. Kingambit: Defiant, Supreme Overlord, hidden Pressure.
+  it.each(['champions', 'gen9'] as const)('%s: defaults to the first legal ability', (game) => {
+    expect(species('Incineroar', game, blank({ ability: 'Gale Wings' })).ability).toBe('Blaze');
+    expect(species('Kingambit', game).ability).toBe('Defiant');
+  });
+
   it('keeps an existing Tera type and the rest of the set', () => {
     const p = species('Garchomp', 'gen9', blank({ teraType: 'Steel', nature: 'Jolly', item: 'Life Orb' }));
     expect(p.teraType).toBe('Steel');
@@ -97,12 +104,15 @@ describe('getGameData', () => {
 
   it('uses each game\'s own item list', () => {
     // Charizardite X is a Mega Stone, and Mega Evolution is Champions'
-    // gimmick. Booster Energy was introduced in Scarlet/Violet. (@smogon/calc's
-    // Gen 9 list also carries Mega Stones, following Showdown's National Dex
-    // data, so that is not asserted against.)
+    // gimmick; Scarlet/Violet has no Mega Stones. Booster Energy was
+    // introduced in Scarlet/Violet. Z-Crystals and TRs are in neither.
     expect(getGameData('champions').items).toContain('Charizardite X');
+    expect(getGameData('gen9').items).not.toContain('Charizardite X');
     expect(getGameData('gen9').items).toContain('Booster Energy');
-    expect(getGameData('champions').items).not.toEqual(getGameData('gen9').items);
+    for (const game of ['champions', 'gen9'] as const) {
+      expect(getGameData(game).items).not.toContain('Firium Z');
+      expect(getGameData(game).items).not.toContain('TR00');
+    }
   });
 });
 

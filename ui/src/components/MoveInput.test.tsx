@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import type { Move } from '@vgc/types';
+import { loadLearnset } from './legalData';
 import { MoveInput } from './MoveInput';
 
 // No DOM test environment is installed (no jsdom or testing-library), so
@@ -25,9 +26,18 @@ const FAKE_OUT: Move = {
   flags: { ...NO_FLAGS, contact: true },
 };
 
-function render(move: Move, game: 'champions' | 'gen9' = 'gen9'): string {
-  return renderToStaticMarkup(<MoveInput move={move} game={game} onChange={() => {}} />);
+function render(move: Move, game: 'champions' | 'gen9' = 'gen9', species = 'Incineroar'): string {
+  return renderToStaticMarkup(<MoveInput move={move} game={game} species={species} onChange={() => {}} />);
 }
+
+// Static rendering does not run effects, so learnsets are loaded up front.
+beforeAll(async () => {
+  for (const game of ['champions', 'gen9'] as const) {
+    await loadLearnset(game, 'Incineroar');
+    await loadLearnset(game, 'Garchomp');
+    await loadLearnset(game, 'Not A Pokemon');
+  }
+});
 
 describe('MoveInput', () => {
   it('shows the selected move and its values as read-only text', () => {
@@ -61,6 +71,29 @@ describe('MoveInput', () => {
   it('hides the details when no move is selected', () => {
     const html = render({ ...FAKE_OUT, name: '' });
     expect(html).not.toContain('<dl');
-    expect(html).toContain('placeholder="Search Scarlet/Violet moves"');
+    expect(html).toContain('placeholder="Search Incineroar&#x27;s moves"');
+    expect(render({ ...FAKE_OUT, name: '' }, 'gen9', '')).toContain('placeholder="Search Scarlet/Violet moves"');
+  });
+});
+
+describe('MoveInput learnset checks', () => {
+  // Reference: Bulbapedia. Incineroar learns Fake Out (Scarlet/Violet egg
+  // move; standard on Champions sets). Garchomp cannot learn it in any game.
+  it.each(['champions', 'gen9'] as const)('%s: warns when the attacker cannot learn the move', (game) => {
+    const label = game === 'champions' ? 'Champions' : 'Scarlet/Violet';
+    expect(render(FAKE_OUT, game, 'Garchomp')).toContain(`Garchomp can&#x27;t learn Fake Out in ${label}.`);
+    expect(render(FAKE_OUT, game, 'Incineroar')).not.toContain('can&#x27;t learn');
+  });
+
+  it('says so when there is no learnset data for the attacker', () => {
+    const html = render(FAKE_OUT, 'champions', 'Not A Pokemon');
+    expect(html).toContain('No Champions learnset data for Not A Pokemon');
+    expect(html).not.toContain('can&#x27;t learn');
+  });
+
+  it('does not warn while the learnset is still loading', () => {
+    const html = render(FAKE_OUT, 'gen9', 'Talonflame');
+    expect(html).not.toContain('can&#x27;t learn');
+    expect(html).not.toContain('No Scarlet/Violet learnset data');
   });
 });

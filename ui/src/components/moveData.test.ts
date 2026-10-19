@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { findMove, movesFor, searchMoves } from './moveData';
+import { findMove, moveId, movesFor, searchMoves } from './moveData';
 
 // Expected values are in-game facts from Bulbapedia move pages and, for the
 // Champions changes, Serebii's "Updated Attacks" list
@@ -119,5 +119,21 @@ describe('searchMoves', () => {
 
   it('respects the limit', () => {
     expect(searchMoves('champions', '', 10)).toHaveLength(10);
+  });
+
+  it('only returns moves in the allowed set of move IDs', () => {
+    const allowed = new Set(['fakeout', 'uturn', 'firepunch']);
+    expect(searchMoves('gen9', '', 100, allowed).map((m) => m.name)).toEqual(['Fake Out', 'Fire Punch', 'U-turn']);
+    expect(searchMoves('gen9', 'fire', 100, allowed).map((m) => m.name)).toEqual(['Fire Punch']);
+    expect(searchMoves('gen9', '', 100, new Set())).toEqual([]);
+  });
+});
+
+describe('moveId', () => {
+  // Showdown move IDs, e.g. https://play.pokemonshowdown.com/data/moves.json keys.
+  it('matches Showdown IDs', () => {
+    expect(moveId('U-turn')).toBe('uturn');
+    expect(moveId("King's Shield")).toBe('kingsshield');
+    expect(moveId('Fake Out')).toBe('fakeout');
   });
 });

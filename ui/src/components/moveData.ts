@@ -131,10 +131,21 @@ function normalize(text: string): string {
   return text.toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
+// Lowercase letters and digits only: the same as Showdown's move IDs, so
+// "U-turn" becomes "uturn".
+export const moveId = normalize;
+
 // Case- and punctuation-insensitive search ("uturn" finds "U-turn").
 // Names that start with the query come before names that only contain it.
-export function searchMoves(game: Game, query: string, limit: number): Move[] {
-  const all = [...movesFor(game).values()];
+// When `allowed` is given (a learnset of move IDs), only those moves match.
+export function searchMoves(
+  game: Game,
+  query: string,
+  limit: number,
+  allowed?: ReadonlySet<string>,
+): Move[] {
+  let all = [...movesFor(game).values()];
+  if (allowed) all = all.filter((move) => allowed.has(normalize(move.name)));
   const needle = normalize(query);
   if (needle === '') return all.slice(0, limit);
 

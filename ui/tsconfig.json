@@ -13,7 +13,8 @@
     "types": ["vite/client"],
     "baseUrl": ".",
     "paths": {
-      "@vgc/*": ["../src/*"]
+      "@vgc/*": ["../src/*"],
+      "@pkmn/mods/champions": ["node_modules/@pkmn/mods/build/champions/index.d.ts"]
     }
   },
   "include": ["src", "vite.config.ts"]
