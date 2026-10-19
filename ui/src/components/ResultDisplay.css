@@ -1,0 +1,47 @@
+.result-display {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid rgb(128 128 128 / 0.35);
+  border-radius: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.result-display__summary {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.result-display__facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 2rem;
+  margin: 0;
+}
+
+.result-display__facts dt {
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+
+.result-display__facts dd {
+  margin: 0;
+}
+
+.result-display__rolls {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(3.5rem, 1fr));
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.result-display__rolls li {
+  padding: 0.25rem;
+  border-radius: 4px;
+  background: rgb(128 128 128 / 0.12);
+  text-align: center;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
