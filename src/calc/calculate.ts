@@ -2,16 +2,26 @@ import type { DamageContext, DamageResult, FieldState, Modifier, Pokemon, StatNa
 import { baseDamage, RANDOM_ROLL_CEILING, RANDOM_ROLL_FLOOR } from './damage';
 import { MODIFIER_ORDER, pokeRound, runPipeline, runPostRoll, runPreRoll, sortModifiers } from './modifier-pipeline';
 import {
-  ATTACK_STAT_ABILITY_MODIFIERS,
+  ATTACK_STAT_ATTACKER_ABILITY_MODIFIERS,
+  ATTACK_STAT_DEFENDER_ABILITY_MODIFIERS,
   ATTACK_STAT_ITEM_MODIFIERS,
-  BASE_POWER_MODIFIERS,
+  BASE_POWER_ABILITY_MODIFIERS,
+  BASE_POWER_ITEM_MODIFIERS,
   DEFENSE_STAT_ITEM_MODIFIERS,
-  FINAL_MODIFIERS,
+  FINAL_ABILITY_MODIFIERS,
+  FINAL_ITEM_MODIFIERS,
   isImmuneByAbility,
   isImmuneByItem,
   resolveAbilitiesAndItems,
   type ChainModifier,
 } from './modifiers/abilities-items';
+import {
+  batteryMultiplier,
+  friendGuardMultiplier,
+  helpingHandMultiplier,
+  powerSpotMultiplier,
+  steelySpiritMultiplier,
+} from './modifiers/ally';
 import { defensiveStat, hitsPhysicalDefense, ignoresDefensiveStages, offensiveStat } from './modifiers/alt-stats';
 import { CORE_MODIFIERS } from './modifiers/core';
 import {
@@ -66,13 +76,18 @@ import { getMoveEffectiveness } from './move-effectiveness';
  * multiplier (util.js chainMods) and rounds once, so stacking modifiers must
  * not be applied one by one. Each chain lists its modifiers in the order
  * @smogon/calc pushes them:
- *   base power    terrain, Technician, type-boosting item      [41, 2097152]
- *   attack stat   Guts / Huge Power, Thick Fat, Ruin, Choice    [410, 131072]
+ *   base power    Helping Hand, terrain, Technician,           [41, 2097152]
+ *                 Battery, Power Spot, type-boosting item
+ *   attack stat   Guts / Huge Power, Steely Spirit (ally),     [410, 131072]
+ *                 Thick Fat, Ruin, Choice
  *   defense stat  Ruin, Assault Vest                           [410, 131072]
  *                 (both see the move as Physical when it hits Def, e.g.
  *                 Psyshock, like gen789.js's `hitsPhysical`)
  *   final mods    screens, Tinted Lens, Multiscale,            [41, 131072]
- *                 Solid Rock / Filter, Expert Belt / Life Orb
+ *                 Solid Rock / Filter, Friend Guard,
+ *                 Expert Belt / Life Orb
+ * The ally flags (Helping Hand, Battery, Power Spot, Steely Spirit, Friend
+ * Guard) come from modifiers/ally.ts.
  *
  * WHY THE ROLL IS APPLIED HERE
  * ----------------------------
@@ -83,7 +98,7 @@ import { getMoveEffectiveness } from './move-effectiveness';
  * roll is applied after runPreRoll.
  *
  * NOT HANDLED: abilities and items outside modifiers/abilities-items.ts
- * (Unaware, Hustle, Sniper, Helping Hand, Friend Guard, resist berries, ...),
+ * (Unaware, Hustle, Sniper, resist berries, ...),
  * other stat-swapping moves (Shell Side Arm, Photon Geyser, Tera Blast),
  * variable-power moves (basePower is used as given), and multi-hit moves
  * (rolls are for a single hit).
@@ -122,7 +137,13 @@ const DEFENSE_STAT_CHAIN_FIELD_MODIFIERS = DEFENSE_STAT_FIELD_MODIFIERS.filter(
 );
 
 function finalModsMultiplier(ctx: DamageContext): number {
-  return chainMultipliers([screensMultiplier(ctx), ...multipliersOf(ctx, FINAL_MODIFIERS)], 41, 131072);
+  const mods = [
+    screensMultiplier(ctx),
+    ...multipliersOf(ctx, FINAL_ABILITY_MODIFIERS),
+    friendGuardMultiplier(ctx),
+    ...multipliersOf(ctx, FINAL_ITEM_MODIFIERS),
+  ];
+  return chainMultipliers(mods, 41, 131072);
 }
 
 /**
@@ -155,7 +176,14 @@ function rawStats(pokemon: Pokemon, isWonderRoom: boolean): StatTable {
 }
 
 function basePower(ctx: DamageContext): number {
-  const mods = [terrainMultiplier(ctx), ...multipliersOf(ctx, BASE_POWER_MODIFIERS)];
+  const mods = [
+    helpingHandMultiplier(ctx),
+    terrainMultiplier(ctx),
+    ...multipliersOf(ctx, BASE_POWER_ABILITY_MODIFIERS),
+    batteryMultiplier(ctx),
+    powerSpotMultiplier(ctx),
+    ...multipliersOf(ctx, BASE_POWER_ITEM_MODIFIERS),
+  ];
   return Math.max(1, applyChain(ctx.move.basePower, mods, 41, 2097152));
 }
 
@@ -172,7 +200,9 @@ function attackingStat(ctx: DamageContext): number {
   const stage = pokemon.statBoosts[stat];
   const boosted = ctx.isCritical && stage < 0 ? raw : applyStage(raw, stage);
   const mods = [
-    ...multipliersOf(ctx, ATTACK_STAT_ABILITY_MODIFIERS),
+    ...multipliersOf(ctx, ATTACK_STAT_ATTACKER_ABILITY_MODIFIERS),
+    steelySpiritMultiplier(ctx),
+    ...multipliersOf(ctx, ATTACK_STAT_DEFENDER_ABILITY_MODIFIERS),
     ...fieldMultipliersOf(ctx, ATTACK_STAT_FIELD_MODIFIERS),
     ...multipliersOf(ctx, ATTACK_STAT_ITEM_MODIFIERS),
   ];

@@ -17,11 +17,16 @@ import { getDefensiveTypes } from '../type-chart';
  * calculate.ts splices the field modifiers (terrain, Ruin, screens) into the
  * same chains at their positions:
  *
- *   base power    terrain | Technician, type-boosting item
- *   attack stat   Guts / Huge Power / Pure Power, Thick Fat | Ruin | Choice Band / Specs
+ *   base power    Helping Hand | terrain | Technician | Battery, Power Spot |
+ *                 type-boosting item
+ *   attack stat   Guts / Huge Power / Pure Power | Steely Spirit | Thick Fat |
+ *                 Ruin | Choice Band / Specs
  *   defense stat  Ruin | Assault Vest
- *   final mods    screens | Tinted Lens, Multiscale, Solid Rock / Filter,
- *                 Expert Belt / Life Orb
+ *   final mods    screens | Tinted Lens, Multiscale, Solid Rock / Filter |
+ *                 Friend Guard | Expert Belt / Life Orb
+ *
+ * (Helping Hand, Battery, Power Spot, Steely Spirit and Friend Guard are the
+ * ally flags in modifiers/ally.ts.)
  *
  * Immunity abilities and Levitate are not multipliers: the move deals 0.
  * Mold Breaker, Magic Room and Klutz change which abilities and items are
@@ -285,8 +290,16 @@ export const TYPE_BOOST_ITEM: ChainModifier = chainModifier(
   TYPE_ITEM_BOOST,
 );
 
-/** In chain order; they follow terrain. */
-export const BASE_POWER_MODIFIERS: readonly ChainModifier[] = [TECHNICIAN, TYPE_BOOST_ITEM];
+/**
+ * In chain order; they follow terrain. calculate.ts splices Battery and
+ * Power Spot (modifiers/ally.ts) between the ability and item halves.
+ */
+export const BASE_POWER_ABILITY_MODIFIERS: readonly ChainModifier[] = [TECHNICIAN];
+export const BASE_POWER_ITEM_MODIFIERS: readonly ChainModifier[] = [TYPE_BOOST_ITEM];
+export const BASE_POWER_MODIFIERS: readonly ChainModifier[] = [
+  ...BASE_POWER_ABILITY_MODIFIERS,
+  ...BASE_POWER_ITEM_MODIFIERS,
+];
 
 // ---------------------------------------------------------------------------
 // Attack-stat chain
@@ -320,8 +333,17 @@ export const CHOICE_ITEM: ChainModifier = chainModifier(
   CHOICE_BOOST,
 );
 
-/** In chain order; the Ruin abilities go between these and ATTACK_STAT_ITEM_MODIFIERS. */
-export const ATTACK_STAT_ABILITY_MODIFIERS: readonly ChainModifier[] = [GUTS, HUGE_POWER, THICK_FAT];
+/**
+ * In chain order; the Ruin abilities go between these and
+ * ATTACK_STAT_ITEM_MODIFIERS. calculate.ts splices an ally's Steely Spirit
+ * (modifiers/ally.ts) between the attacker and defender halves.
+ */
+export const ATTACK_STAT_ATTACKER_ABILITY_MODIFIERS: readonly ChainModifier[] = [GUTS, HUGE_POWER];
+export const ATTACK_STAT_DEFENDER_ABILITY_MODIFIERS: readonly ChainModifier[] = [THICK_FAT];
+export const ATTACK_STAT_ABILITY_MODIFIERS: readonly ChainModifier[] = [
+  ...ATTACK_STAT_ATTACKER_ABILITY_MODIFIERS,
+  ...ATTACK_STAT_DEFENDER_ABILITY_MODIFIERS,
+];
 export const ATTACK_STAT_ITEM_MODIFIERS: readonly ChainModifier[] = [CHOICE_ITEM];
 
 // ---------------------------------------------------------------------------
@@ -386,5 +408,10 @@ export const DAMAGE_BOOST_ITEM: ChainModifier = {
   },
 };
 
-/** In chain order; they follow the screens. */
-export const FINAL_MODIFIERS: readonly ChainModifier[] = [TINTED_LENS, MULTISCALE, SOLID_ROCK, DAMAGE_BOOST_ITEM];
+/**
+ * In chain order; they follow the screens. calculate.ts splices Friend Guard
+ * (modifiers/ally.ts) between the ability and item halves.
+ */
+export const FINAL_ABILITY_MODIFIERS: readonly ChainModifier[] = [TINTED_LENS, MULTISCALE, SOLID_ROCK];
+export const FINAL_ITEM_MODIFIERS: readonly ChainModifier[] = [DAMAGE_BOOST_ITEM];
+export const FINAL_MODIFIERS: readonly ChainModifier[] = [...FINAL_ABILITY_MODIFIERS, ...FINAL_ITEM_MODIFIERS];
