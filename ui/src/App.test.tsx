@@ -18,6 +18,27 @@ describe('App', () => {
     expect(html).toContain('Garchomp Earthquake vs. Incineroar');
   });
 
+  it('shows the reverse calc result alongside it', () => {
+    // @smogon/calc 0.12.0, Champions doubles: 0 Atk Incineroar Flare Blitz
+    // vs. 0 HP / 0 Def Garchomp: 39-47 (21.3 - 25.6%) -- 0.7% chance to 4HKO.
+    // ResultDisplay says "possible" for a less-than-certain KO.
+    expect(html).toContain('21.3% - 25.6% (possible 4HKO)');
+    expect(html).toContain('Incineroar Flare Blitz vs. Garchomp');
+    // Forward first, reverse second.
+    expect(html.indexOf('75.2% - 90.0%')).toBeLessThan(html.indexOf('21.3% - 25.6%'));
+  });
+
+  it("gives each direction its own move picker, labeled with the attacking Pokemon", () => {
+    expect(html.match(/class="move-input"/g)).toHaveLength(2);
+    expect(html.match(/class="result-display"/g)).toHaveLength(2);
+    expect(html).toContain('Garchomp&#x27;s move');
+    expect(html).toContain('Incineroar&#x27;s move');
+    expect(html).toContain('value="Earthquake"');
+    expect(html).toContain('value="Flare Blitz"');
+    expect(html).toContain('aria-label="Attacker&#x27;s move into defender"');
+    expect(html).toContain('aria-label="Defender&#x27;s move into attacker"');
+  });
+
   it('renders all four components', () => {
     expect(html).toContain('aria-label="Attacker"');
     expect(html).toContain('aria-label="Defender"');

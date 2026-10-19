@@ -1,10 +1,20 @@
 import { useEffect, useId, useMemo, useState } from 'react';
-import type { FieldState, Game, Move, Pokemon } from '../../src/types';
+import type { DamageContext, FieldState, Game, Move, Pokemon } from '../../src/types';
 import { FieldInput } from './components/FieldInput';
 import { MoveInput } from './components/MoveInput';
 import { PokemonInput } from './components/PokemonInput';
 import { ResultDisplay } from './components/ResultDisplay';
-import { initialState, isSpread, matchupLabel, runCalc, switchGame, type CalcState } from './appState';
+import {
+  forwardContext,
+  initialState,
+  isSpread,
+  matchupLabel,
+  reverseContext,
+  runCalc,
+  switchGame,
+  type CalcOutcome,
+  type CalcState,
+} from './appState';
 import {
   applyThemePreference,
   browserStorage,
@@ -34,12 +44,18 @@ export function App() {
     saveThemePreference(browserStorage(), theme);
   }, [theme]);
 
-  // Recalculates on every state change; there is no submit step.
-  const outcome = useMemo(() => runCalc(state), [state]);
+  // Both directions recalculate on every state change; there is no submit step.
+  const forward = useMemo(() => forwardContext(state), [state]);
+  const reverse = useMemo(() => reverseContext(state), [state]);
+  const forwardOutcome = useMemo(() => runCalc(forward), [forward]);
+  const reverseOutcome = useMemo(() => runCalc(reverse), [reverse]);
 
   const setAttacker = (attacker: Pokemon) => setState((s) => ({ ...s, attacker }));
   const setDefender = (defender: Pokemon) => setState((s) => ({ ...s, defender }));
   const setMove = (move: Move) => setState((s) => ({ ...s, move }));
+  const setReverseMove = (reverseMove: Move) => setState((s) => ({ ...s, reverseMove }));
+  const setCritical = (isCritical: boolean) => setState((s) => ({ ...s, isCritical }));
+  const setReverseCritical = (reverseIsCritical: boolean) => setState((s) => ({ ...s, reverseIsCritical }));
   const setField = (field: FieldState) => setState((s) => ({ ...s, field }));
   const setGame = (game: Game) => setState((s) => switchGame(s, game));
 
@@ -57,40 +73,20 @@ export function App() {
         </div>
 
         <div className="app-center">
-          <section className="app-result" aria-live="polite" aria-label="Result">
-            <p className="app-matchup">
-              {matchupLabel(state)}
-              {isSpread(state) && <span className="app-tag">spread</span>}
-              {state.isCritical && <span className="app-tag">crit</span>}
-            </p>
-            {outcome.ok ? (
-              <ResultDisplay result={outcome.result} />
-            ) : (
-              <p className="app-error" role="alert">
-                Can't calculate: {outcome.error}
-              </p>
-            )}
-          </section>
-
-          <div className="app-move">
-            <MoveInput
-              game={state.game}
-              species={state.attacker.species}
-              move={state.move}
-              onChange={setMove}
-            />
-            <label className="app-check">
-              <input
-                type="checkbox"
-                checked={state.isCritical}
-                onChange={(e) => {
-                  const isCritical = e.currentTarget.checked;
-                  setState((s) => ({ ...s, isCritical }));
-                }}
-              />
-              Critical hit
-            </label>
-          </div>
+          <Direction
+            label="Attacker's move into defender"
+            ctx={forward}
+            outcome={forwardOutcome}
+            onMoveChange={setMove}
+            onCriticalChange={setCritical}
+          />
+          <Direction
+            label="Defender's move into attacker"
+            ctx={reverse}
+            outcome={reverseOutcome}
+            onMoveChange={setReverseMove}
+            onCriticalChange={setReverseCritical}
+          />
         </div>
 
         <div className="app-side">
@@ -102,6 +98,55 @@ export function App() {
         <FieldInput game={state.game} field={state.field} onChange={setField} />
       </footer>
     </div>
+  );
+}
+
+interface DirectionProps {
+  label: string;
+  ctx: DamageContext;
+  outcome: CalcOutcome;
+  onMoveChange: (move: Move) => void;
+  onCriticalChange: (isCritical: boolean) => void;
+}
+
+// One direction of the matchup: the attacking Pokemon's move picker (limited
+// to its own learnset), the crit toggle, and the result of that hit.
+function Direction({ label, ctx, outcome, onMoveChange, onCriticalChange }: DirectionProps) {
+  const species = ctx.attacker.species;
+  return (
+    <section className="app-direction" aria-label={label}>
+      <div className="app-matchup">
+        <p className="app-matchup-text">
+          {matchupLabel(ctx)}
+          {isSpread(ctx) && <span className="app-tag">spread</span>}
+          {ctx.isCritical && <span className="app-tag">crit</span>}
+        </p>
+        <label className="app-check">
+          <input
+            type="checkbox"
+            checked={ctx.isCritical}
+            onChange={(e) => onCriticalChange(e.currentTarget.checked)}
+          />
+          Crit
+        </label>
+      </div>
+      <MoveInput
+        game={ctx.game}
+        species={species}
+        move={ctx.move}
+        label={species === '' ? 'Move' : `${species}'s move`}
+        onChange={onMoveChange}
+      />
+      <div className="app-result" aria-live="polite">
+        {outcome.ok ? (
+          <ResultDisplay result={outcome.result} />
+        ) : (
+          <p className="app-error" role="alert">
+            Can't calculate: {outcome.error}
+          </p>
+        )}
+      </div>
+    </section>
   );
 }
 
