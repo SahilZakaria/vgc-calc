@@ -1,7 +1,7 @@
 // Static-render test. The repo has no DOM test environment, so this checks
-// the first render: every component is on screen and the result is the
-// reference calc. The state rules behind the handlers are tested in
-// appState.test.ts and theme.test.ts.
+// the first render: every component is on screen and the results grid shows
+// the reference calcs. The state rules behind the handlers are tested in
+// appState.test.ts, MatchupGrid.test.tsx and theme.test.ts.
 
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
@@ -10,49 +10,60 @@ import { App } from './App';
 describe('App', () => {
   const html = renderToStaticMarkup(<App />);
 
-  it("shows the default calc result, with Incineroar's Intimidate applied", () => {
-    // @smogon/calc 0.12.0, Champions doubles, Incineroar abilityOn: -1 32+ Atk
-    // Garchomp Earthquake vs. 32 HP / 0 Def Incineroar: 102-122 (50.4 - 60.3%)
-    // -- guaranteed 2HKO. ResultDisplay prints percents to one decimal.
-    expect(html).toContain('50.4% - 60.3% (guaranteed 2HKO)');
-    expect(html).toContain('Garchomp Earthquake vs. Incineroar');
+  it('shows four Pokemon panels, two per side', () => {
+    for (const label of ['Left 1', 'Left 2', 'Right 1', 'Right 2']) {
+      expect(html).toContain(`aria-label="${label}"`);
+    }
+    expect(html.match(/class="pki"/g)).toHaveLength(4);
+    expect(html.indexOf('aria-label="Left 2"')).toBeLessThan(html.indexOf('aria-label="Left side attacking"'));
+    expect(html.indexOf('aria-label="Right side attacking"')).toBeLessThan(html.indexOf('aria-label="Right 1"'));
   });
 
-  it('explains the Intimidate drop next to the attacker and marks its Atk stage', () => {
-    expect(html).toContain('Incineroar&#x27;s Intimidate: Atk −1');
-    expect(html).toContain('>Ignore</button>');
-    expect(html).toContain('aria-label="Atk boost, includes Incineroar&#x27;s Intimidate"');
-    // The note sits in the attacker's column, before the defender's input.
-    expect(html.indexOf('Incineroar&#x27;s Intimidate: Atk −1')).toBeLessThan(html.indexOf('aria-label="Defender"'));
+  it('gives each Pokemon its own move picker and crit toggle', () => {
+    expect(html.match(/class="move-input"/g)).toHaveLength(4);
+    for (const name of ['Garchomp', 'Charizard', 'Incineroar', 'Gardevoir']) {
+      expect(html).toContain(`${name}&#x27;s move`);
+    }
+    for (const move of ['Earthquake', 'Heat Wave', 'Flare Blitz', 'Dazzling Gleam']) {
+      expect(html).toContain(`value="${move}"`);
+    }
+    expect(html.match(/>Crit<\/label>/g)).toHaveLength(4);
   });
 
-  it('shows the reverse calc result alongside it', () => {
-    // @smogon/calc 0.12.0, Champions doubles: 0 Atk Incineroar Flare Blitz
-    // vs. 0 HP / 0 Def Garchomp: 39-47 (21.3 - 25.6%) -- 0.7% chance to 4HKO.
-    // ResultDisplay says "possible" for a less-than-certain KO.
-    expect(html).toContain('21.3% - 25.6% (possible 4HKO)');
-    expect(html).toContain('Incineroar Flare Blitz vs. Garchomp');
-    // Forward first, reverse second.
-    expect(html.indexOf('50.4% - 60.3%')).toBeLessThan(html.indexOf('21.3% - 25.6%'));
+  it('shows all eight hits as compact cells with the reference results', () => {
+    expect(html.match(/class="mg-cell"/g)).toHaveLength(8);
+    // @smogon/calc 0.12.0, Champions doubles, Incineroar's Intimidate on both
+    // left Pokemon (see appState.test.ts for the sets and full rolls).
+    const cells = [
+      'Garchomp Earthquake vs. Incineroar: 50.4% - 60.3%, guaranteed 2HKO',
+      'Garchomp Earthquake vs. Gardevoir: 37.7% - 44.5%, guaranteed 3HKO',
+      'Charizard Heat Wave vs. Incineroar: 14.3% - 17.3%, possible 6HKO',
+      'Charizard Heat Wave vs. Gardevoir: 27.4% - 32.5%, guaranteed 4HKO',
+      'Incineroar Flare Blitz vs. Garchomp: 21.3% - 25.6%, possible 4HKO',
+      'Incineroar Flare Blitz vs. Charizard: 30.0% - 35.9%, possible 3HKO',
+      'Gardevoir Dazzling Gleam vs. Garchomp: 68.8% - 81.9%, guaranteed 2HKO',
+      'Gardevoir Dazzling Gleam vs. Charizard: 20.2% - 24.1%, guaranteed 5HKO',
+    ];
+    for (const cell of cells) expect(html).toContain(`aria-label="${cell}"`);
   });
 
-  it("gives each direction its own move picker, labeled with the attacking Pokemon", () => {
-    expect(html.match(/class="move-input"/g)).toHaveLength(2);
-    expect(html.match(/class="result-display"/g)).toHaveLength(2);
-    expect(html).toContain('Garchomp&#x27;s move');
-    expect(html).toContain('Incineroar&#x27;s move');
-    expect(html).toContain('value="Earthquake"');
-    expect(html).toContain('value="Flare Blitz"');
-    expect(html).toContain('aria-label="Attacker&#x27;s move into defender"');
-    expect(html).toContain('aria-label="Defender&#x27;s move into attacker"');
+  it('starts with every cell collapsed', () => {
+    expect(html).not.toContain('class="result-display"');
+    expect(html).not.toContain('aria-expanded="true"');
   });
 
-  it('renders all four components', () => {
-    expect(html).toContain('aria-label="Attacker"');
-    expect(html).toContain('aria-label="Defender"');
-    expect(html).toContain('class="move-input"');
+  it("explains Incineroar's Intimidate on both left Pokemon and marks their Atk stage", () => {
+    expect(html.match(/Incineroar&#x27;s Intimidate: Atk −1/g)).toHaveLength(2);
+    expect(html.match(/aria-label="Atk boost, includes Incineroar&#x27;s Intimidate"/g)).toHaveLength(2);
+    expect(html.match(/>Ignore<\/button>/g)).toHaveLength(2);
+  });
+
+  it('keeps the field panel, with the sides named left and right', () => {
     expect(html).toContain('class="field-input"');
-    expect(html).toContain('class="result-display"');
+    expect(html).toContain('<legend>Left side</legend>');
+    expect(html).toContain('<legend>Right side</legend>');
+    expect(html).toContain('Helping Hand');
+    expect(html).toContain('Friend Guard');
   });
 
   it('offers the game and theme toggles with Champions and dark selected', () => {
@@ -66,7 +77,7 @@ describe('App', () => {
   });
 
   it('passes Champions mode to the Pokemon inputs (SP column, fixed level)', () => {
-    expect(html).toContain('Level 50 (fixed in Champions)');
+    expect(html.match(/Level 50 \(fixed in Champions\)/g)).toHaveLength(4);
     expect(html).not.toContain('Tera type');
   });
 });

@@ -1,0 +1,164 @@
+/* MatchupGrid. Selectors are prefixed mg-. Colors come from src/theme.css. */
+
+.mg {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.mg-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 4px;
+  margin: -4px;
+  width: calc(100% + 8px);
+  table-layout: fixed;
+}
+
+.mg-caption {
+  padding: 0 4px 2px;
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.mg-corner {
+  width: 32%;
+}
+
+.mg-defender {
+  overflow: hidden;
+  padding: 0 2px;
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mg-attacker {
+  padding: 0 2px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.mg-attacker-name {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mg-move {
+  display: block;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.mg-attacker-name {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.mg-move {
+  color: var(--color-text-muted);
+  font-size: 0.7rem;
+}
+
+.mg-tag {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 5px;
+  line-height: 1.3;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  vertical-align: 1px;
+}
+
+.mg-cell-wrap {
+  padding: 0;
+}
+
+.mg-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 44px;
+  padding: 4px 4px;
+  border: 1px solid var(--color-border);
+  border-radius: 7px;
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.mg-cell:hover {
+  border-color: var(--color-accent);
+}
+
+.mg-cell:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.mg-cell-open {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+
+.mg-range {
+  font-size: 0.88rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.mg-range-error {
+  color: var(--color-danger);
+}
+
+.mg-ko {
+  color: var(--color-text-muted);
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+
+.mg-detail {
+  padding: 6px 8px 8px;
+  border: 1px solid var(--color-accent);
+  border-radius: 7px;
+  background: var(--color-accent-soft);
+}
+
+.mg-detail-title {
+  margin: 0 0 4px;
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.mg-error {
+  margin: 0;
+  color: var(--color-danger);
+  font-weight: 600;
+}
+
+.mg-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

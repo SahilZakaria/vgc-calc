@@ -3,7 +3,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { DamageResult } from '@vgc/types';
-import { ResultDisplay } from './ResultDisplay';
+import { damageSummary, ResultDisplay } from './ResultDisplay';
 
 // Reference: @smogon/calc 0.12.0 (the engine behind the Showdown calc).
 // Rolls and max HP come from its calculate(); the expected KO text comes from
@@ -123,5 +123,11 @@ describe('ResultDisplay', () => {
   it('does not claim a KO when every roll is 0', () => {
     const summary = summaryOf(render({ rolls: new Array<number>(16).fill(0), defenderMaxHp: 200, minPercent: 0, maxPercent: 0 }));
     expect(summary).toBe('0.0% - 0.0% (no damage)');
+  });
+
+  it.each(cases)('damageSummary gives the same pieces as the summary line: %s', (_name, smogon) => {
+    const { result, summary } = fromSmogon(smogon);
+    const s = damageSummary(result);
+    expect(`${s.minPercent}% - ${s.maxPercent}% (${s.ko})`).toBe(summary);
   });
 });

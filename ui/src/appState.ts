@@ -1,5 +1,7 @@
-// State behind App: the starting matchup, what happens on a game switch, and
-// running the calc. Kept out of App.tsx so it can be tested without a DOM.
+// State behind App: the starting doubles field, what happens on a game
+// switch, switch-in stage changes, and the damage contexts for every
+// attacker/defender pair. Kept out of App.tsx so it can be tested without a
+// DOM.
 //
 // Relative imports (not '@vgc/*') so the root vitest run, which has no alias,
 // can load this file.
@@ -11,22 +13,69 @@ import type { DamageContext, DamageResult, FieldState, Game, Move, Pokemon, Side
 import { findMove } from './components/moveData';
 import { applySpecies, BOOST_STATS, normalizeForGame, type BoostStat } from './components/pokemonInputModel';
 
-export type Slot = 'attacker' | 'defender';
+// ---------------------------------------------------------------------------
+// Field layout
+// ---------------------------------------------------------------------------
 
-// Everything the calculator screen edits. The DamageContext fields are the
-// forward hit (attacker's move into defender). The reverse hit (defender's
-// move into attacker) shares the Pokemon and field and adds its own move and
-// crit flag. Declared here rather than in src/types.ts, which is off limits.
-//
-// `attacker.statBoosts` and `defender.statBoosts` hold the stages the user
-// entered. Switch-in effects (Intimidate) are added on top by
-// effectivePokemon, except on the stats listed in `manualStages`: the user
-// set those by hand, and they are used exactly as entered.
-export interface CalcState extends DamageContext {
-  reverseMove: Move;
-  reverseIsCritical: boolean;
-  manualStages: Record<Slot, readonly BoostStat[]>;
+/** The two sides of the field. FieldInput's "attackerSide" is the left side. */
+export type Side = 'left' | 'right';
+
+/** One position on the field: two per side. */
+export type Slot = 'left1' | 'left2' | 'right1' | 'right2';
+
+export const SLOTS: readonly Slot[] = ['left1', 'left2', 'right1', 'right2'];
+
+export const SIDE_SLOTS: Readonly<Record<Side, readonly [Slot, Slot]>> = {
+  left: ['left1', 'left2'],
+  right: ['right1', 'right2'],
+};
+
+export const SIDES: readonly Side[] = ['left', 'right'];
+
+export const sideOf = (slot: Slot): Side => (slot === 'left1' || slot === 'left2' ? 'left' : 'right');
+
+export const otherSide = (side: Side): Side => (side === 'left' ? 'right' : 'left');
+
+/**
+ * One Pokemon on the field and what it does this turn. Declared here rather
+ * than in src/types.ts, which is off limits.
+ *
+ * `pokemon.statBoosts` holds the stages the user entered. Switch-in effects
+ * (Intimidate) are added on top by effectivePokemon, except on the stats in
+ * `manualStages`: the user set those by hand, and they are used as entered.
+ */
+export interface SlotState {
+  pokemon: Pokemon;
+  move: Move;
+  isCritical: boolean;
+  manualStages: readonly BoostStat[];
 }
+
+/** Everything the calculator screen edits. */
+export interface CalcState {
+  game: Game;
+  field: FieldState;
+  slots: Record<Slot, SlotState>;
+}
+
+/**
+ * The slots in play. Doubles uses all four. Singles is one Pokemon a side, so
+ * only the first slot on each side takes part; the second slots keep their
+ * sets for when doubles is turned back on.
+ */
+export function activeSlots(state: CalcState): Slot[] {
+  return state.field.isDoubles ? [...SLOTS] : ['left1', 'right1'];
+}
+
+/** The active Pokemon on the other side from `slot`. */
+export function foesOf(state: CalcState, slot: Slot): Slot[] {
+  const foeSide = otherSide(sideOf(slot));
+  return activeSlots(state).filter((s) => sideOf(s) === foeSide);
+}
+
+// ---------------------------------------------------------------------------
+// Starting state
+// ---------------------------------------------------------------------------
 
 const table = (hp: number, atk: number, def: number, spa: number, spd: number, spe: number): StatTable => ({
   hp,
@@ -98,35 +147,74 @@ function requireMove(game: Game, name: string): Move {
   return move;
 }
 
-// Starting matchup: Adamant 32 Atk SP Garchomp's Earthquake into 32 HP SP
-// Incineroar, and Incineroar's Flare Blitz back, Champions doubles.
+const slotState = (pokemon: Pokemon, move: Move): SlotState => ({
+  pokemon,
+  move,
+  isCritical: false,
+  manualStages: [],
+});
+
+// Starting field, Champions doubles:
+//   left:  Adamant 32 Atk SP Garchomp (Earthquake),
+//          Timid 32 SpA / 32 Spe SP Charizard (Heat Wave)
+//   right: Hardy 32 HP SP Incineroar with Intimidate (Flare Blitz),
+//          Modest 32 HP / 32 SpA SP Gardevoir (Dazzling Gleam)
+// Three of the four moves are spread moves, so the 0.75x reduction shows.
 export function initialState(): CalcState {
   const game: Game = 'champions';
   return {
     game,
-    attacker: makePokemon(game, 'Garchomp', {
-      nature: 'Adamant',
-      ability: 'Rough Skin',
-      evs: table(0, spToEv(32), 0, 0, 0, 0),
-    }),
-    defender: makePokemon(game, 'Incineroar', {
-      nature: 'Hardy',
-      ability: 'Intimidate',
-      evs: table(spToEv(32), 0, 0, 0, 0, 0),
-    }),
-    move: requireMove(game, 'Earthquake'),
     field: DEFAULT_FIELD,
-    isCritical: false,
-    reverseMove: requireMove(game, 'Flare Blitz'),
-    reverseIsCritical: false,
-    manualStages: { attacker: [], defender: [] },
+    slots: {
+      left1: slotState(
+        makePokemon(game, 'Garchomp', {
+          nature: 'Adamant',
+          ability: 'Rough Skin',
+          evs: table(0, spToEv(32), 0, 0, 0, 0),
+        }),
+        requireMove(game, 'Earthquake'),
+      ),
+      left2: slotState(
+        makePokemon(game, 'Charizard', {
+          nature: 'Timid',
+          ability: 'Blaze',
+          evs: table(0, 0, 0, spToEv(32), 0, spToEv(32)),
+        }),
+        requireMove(game, 'Heat Wave'),
+      ),
+      right1: slotState(
+        makePokemon(game, 'Incineroar', {
+          nature: 'Hardy',
+          ability: 'Intimidate',
+          evs: table(spToEv(32), 0, 0, 0, 0, 0),
+        }),
+        requireMove(game, 'Flare Blitz'),
+      ),
+      right2: slotState(
+        makePokemon(game, 'Gardevoir', {
+          nature: 'Modest',
+          ability: 'Synchronize',
+          evs: table(spToEv(32), 0, 0, spToEv(32), 0, 0),
+        }),
+        requireMove(game, 'Dazzling Gleam'),
+      ),
+    },
+  };
+}
+
+function mapSlots(state: CalcState, fn: (slot: SlotState) => SlotState): Record<Slot, SlotState> {
+  return {
+    left1: fn(state.slots.left1),
+    left2: fn(state.slots.left2),
+    right1: fn(state.slots.right1),
+    right2: fn(state.slots.right2),
   };
 }
 
 // Switching games keeps the sets and field as entered, with these changes:
 // - Champions sets are forced to level 50, 31 IVs, SP-exact EVs and no Tera
 //   (normalizeForGame). Going to Gen 9 changes nothing on the Pokemon.
-// - Both moves are reloaded from the new game's data, since power and flags
+// - Every move is reloaded from the new game's data, since power and flags
 //   can differ. A move the new game lacks is kept and MoveInput flags it.
 // - Field flags the new game has no use for (Ruin, primal weather) stay in
 //   state; the Champions calc ignores them and FieldInput shows a stray
@@ -136,11 +224,17 @@ export function switchGame(state: CalcState, game: Game): CalcState {
   return {
     ...state,
     game,
-    attacker: normalizeForGame(state.attacker, game),
-    defender: normalizeForGame(state.defender, game),
-    move: findMove(game, state.move.name) ?? state.move,
-    reverseMove: findMove(game, state.reverseMove.name) ?? state.reverseMove,
+    slots: mapSlots(state, (s) => ({
+      ...s,
+      pokemon: normalizeForGame(s.pokemon, game),
+      move: findMove(game, s.move.name) ?? s.move,
+    })),
   };
+}
+
+/** Replaces one slot's move or crit flag. */
+export function updateSlot(state: CalcState, slot: Slot, patch: Partial<Omit<SlotState, 'pokemon' | 'manualStages'>>): CalcState {
+  return { ...state, slots: { ...state.slots, [slot]: { ...state.slots[slot], ...patch } } };
 }
 
 // ---------------------------------------------------------------------------
@@ -162,48 +256,73 @@ export interface StageEffect {
   overridden: BoostStat[];
 }
 
-const OTHER: Record<Slot, Slot> = { attacker: 'defender', defender: 'attacker' };
-
 export const changedStats = (changes: StageChanges): BoostStat[] =>
   BOOST_STATS.filter((stat) => (changes[stat] ?? 0) !== 0);
 
-// Every Intimidate on the field, in both directions, as it lands on each
-// Pokemon. Resolved against the stages the user entered.
-export function stageEffects(state: CalcState): StageEffect[] {
-  const effect = (slot: Slot, source: string, cause: string | null, changes: StageChanges): StageEffect => ({
-    slot,
-    source,
-    cause,
-    changes,
-    overridden: changedStats(changes).filter((stat) => state.manualStages[slot].includes(stat)),
-  });
+interface ResolvedStages {
+  effects: StageEffect[];
+  boosts: Record<Slot, Pokemon['statBoosts']>;
+}
+
+// Every Intimidate on the field. Each active Intimidate user hits every
+// active foe, so in doubles one Intimidate lowers both opposing Pokemon, and
+// two Intimidates on one side stack.
+//
+// Effects resolve one at a time, each against the stages left by the ones
+// before it, so a stat near -6 or +6 clamps the way it would in battle.
+// Order is slot order (left1, left2, right1, right2), and each user hits its
+// foes in slot order. In battle the order follows Speed; it only changes the
+// result when the stage limit is reached part way.
+function resolveStages(state: CalcState): ResolvedStages {
+  const boosts: Record<Slot, Pokemon['statBoosts']> = {
+    left1: state.slots.left1.pokemon.statBoosts,
+    left2: state.slots.left2.pokemon.statBoosts,
+    right1: state.slots.right1.pokemon.statBoosts,
+    right2: state.slots.right2.pokemon.statBoosts,
+  };
   const effects: StageEffect[] = [];
-  for (const user of ['attacker', 'defender'] as const) {
-    const foe = OTHER[user];
-    const result = resolveIntimidate(state[user], state[foe]);
-    if (!result) continue;
-    effects.push(effect(foe, `${state[user].species}'s Intimidate`, result.cause, result.target));
-    if (changedStats(result.source).length > 0) {
-      effects.push(effect(user, `${state[foe].species}'s Mirror Armor`, null, result.source));
+  const current = (slot: Slot): Pokemon => ({ ...state.slots[slot].pokemon, statBoosts: boosts[slot] });
+
+  const record = (slot: Slot, source: string, cause: string | null, changes: StageChanges) => {
+    const manual = state.slots[slot].manualStages;
+    const overridden = changedStats(changes).filter((stat) => manual.includes(stat));
+    effects.push({ slot, source, cause, changes, overridden });
+    const applied: StageChanges = {};
+    for (const stat of changedStats(changes)) {
+      if (!overridden.includes(stat)) applied[stat] = changes[stat];
+    }
+    boosts[slot] = applyStageChanges(boosts[slot], applied);
+  };
+
+  for (const user of activeSlots(state)) {
+    for (const foe of foesOf(state, user)) {
+      const result = resolveIntimidate(current(user), current(foe));
+      if (!result) continue;
+      const userName = state.slots[user].pokemon.species;
+      record(foe, `${userName}'s Intimidate`, result.cause, result.target);
+      if (changedStats(result.source).length > 0) {
+        record(user, `${state.slots[foe].pokemon.species}'s Mirror Armor`, null, result.source);
+      }
     }
   }
-  return effects;
+  return { effects, boosts };
+}
+
+export function stageEffects(state: CalcState): StageEffect[] {
+  return resolveStages(state).effects;
 }
 
 // The Pokemon as the calc sees it: the entered stages plus every automatic
 // change on a stat the user has not set by hand.
 export function effectivePokemon(state: CalcState, slot: Slot): Pokemon {
-  const pokemon = state[slot];
-  let boosts = pokemon.statBoosts;
-  for (const effect of stageEffects(state)) {
-    if (effect.slot !== slot) continue;
-    const applied: StageChanges = {};
-    for (const stat of changedStats(effect.changes)) {
-      if (!effect.overridden.includes(stat)) applied[stat] = effect.changes[stat];
-    }
-    boosts = applyStageChanges(boosts, applied);
-  }
-  return { ...pokemon, statBoosts: boosts };
+  return { ...state.slots[slot].pokemon, statBoosts: resolveStages(state).boosts[slot] };
+}
+
+/** All four Pokemon as the calc sees them, resolved once. */
+export function effectiveField(state: CalcState): Record<Slot, Pokemon> {
+  const { boosts } = resolveStages(state);
+  const shown = (slot: Slot): Pokemon => ({ ...state.slots[slot].pokemon, statBoosts: boosts[slot] });
+  return { left1: shown('left1'), left2: shown('left2'), right1: shown('right1'), right2: shown('right2') };
 }
 
 // Applies an edit from PokemonInput, which shows and emits the effective
@@ -212,16 +331,23 @@ export function effectivePokemon(state: CalcState, slot: Slot): Pokemon {
 // its entered value, so an automatic change is never stored.
 export function editPokemon(state: CalcState, slot: Slot, next: Pokemon): CalcState {
   const shown = effectivePokemon(state, slot);
-  const manual = new Set(state.manualStages[slot]);
+  const entry = state.slots[slot];
+  const manual = new Set(entry.manualStages);
   const statBoosts = { ...next.statBoosts };
   for (const stat of BOOST_STATS) {
     if (next.statBoosts[stat] !== shown.statBoosts[stat]) manual.add(stat);
-    else statBoosts[stat] = state[slot].statBoosts[stat];
+    else statBoosts[stat] = entry.pokemon.statBoosts[stat];
   }
   return {
     ...state,
-    [slot]: { ...next, statBoosts },
-    manualStages: { ...state.manualStages, [slot]: BOOST_STATS.filter((stat) => manual.has(stat)) },
+    slots: {
+      ...state.slots,
+      [slot]: {
+        ...entry,
+        pokemon: { ...next, statBoosts },
+        manualStages: BOOST_STATS.filter((stat) => manual.has(stat)),
+      },
+    },
   };
 }
 
@@ -229,14 +355,15 @@ export function editPokemon(state: CalcState, slot: Slot, next: Pokemon): CalcSt
 // stage is used as is. manual false: automatic changes are added on top of
 // the entered stage again.
 export function setManualStages(state: CalcState, slot: Slot, stats: readonly BoostStat[], manual: boolean): CalcState {
-  const current = new Set(state.manualStages[slot]);
+  const entry = state.slots[slot];
+  const current = new Set(entry.manualStages);
   for (const stat of stats) {
     if (manual) current.add(stat);
     else current.delete(stat);
   }
   return {
     ...state,
-    manualStages: { ...state.manualStages, [slot]: BOOST_STATS.filter((stat) => current.has(stat)) },
+    slots: { ...state.slots, [slot]: { ...entry, manualStages: BOOST_STATS.filter((stat) => current.has(stat)) } },
   };
 }
 
@@ -244,33 +371,36 @@ export function setManualStages(state: CalcState, slot: Slot, stats: readonly Bo
 // Damage contexts
 // ---------------------------------------------------------------------------
 
-// The attacker's move into the defender, with switch-in stage changes applied.
-export function forwardContext(state: CalcState): DamageContext {
-  const { game, move, field, isCritical } = state;
-  return {
-    game,
-    attacker: effectivePokemon(state, 'attacker'),
-    defender: effectivePokemon(state, 'defender'),
-    move,
-    field,
-    isCritical,
-  };
+// The field from `side`'s point of view as the attacker. FieldInput's
+// "attackerSide" is the left side, so a hit from the right swaps the two:
+// the left side's Reflect protects the left Pokemon, and its Helping Hand
+// only boosts left attackers. Weather, terrain, rooms and the Ruin flags are
+// shared and stay as they are.
+export function fieldFor(field: FieldState, attackingSide: Side): FieldState {
+  if (attackingSide === 'left') return field;
+  return { ...field, attackerSide: field.defenderSide, defenderSide: field.attackerSide };
 }
 
-// The defender's move into the attacker. The two Pokemon trade roles, and so
-// do their sides of the field: FieldInput's "Attacker side" is the left
-// Pokemon's side in both directions, so its Reflect protects the left Pokemon
-// from the reverse hit and its Helping Hand only boosts the forward hit.
-// Weather, terrain, rooms and the Ruin flags are shared and stay as they are.
-export function reverseContext(state: CalcState): DamageContext {
-  const { field } = state;
+/**
+ * `attacker`'s move into `defender`, with switch-in stage changes applied.
+ * A spread move gets its 0.75x reduction from the calc itself (field in
+ * doubles, move target allAdjacent or allAdjacentFoes), the same way against
+ * each of the two foes.
+ */
+export function matchupContext(
+  state: CalcState,
+  attacker: Slot,
+  defender: Slot,
+  pokemon: Record<Slot, Pokemon> = effectiveField(state),
+): DamageContext {
+  const entry = state.slots[attacker];
   return {
     game: state.game,
-    attacker: effectivePokemon(state, 'defender'),
-    defender: effectivePokemon(state, 'attacker'),
-    move: state.reverseMove,
-    field: { ...field, attackerSide: field.defenderSide, defenderSide: field.attackerSide },
-    isCritical: state.reverseIsCritical,
+    attacker: pokemon[attacker],
+    defender: pokemon[defender],
+    move: entry.move,
+    field: fieldFor(state.field, sideOf(attacker)),
+    isCritical: entry.isCritical,
   };
 }
 
@@ -286,9 +416,30 @@ export function runCalc(ctx: DamageContext): CalcOutcome {
   }
 }
 
-// One-line description of the matchup, e.g. "Garchomp Earthquake vs. Incineroar".
-// Takes one direction's context, so the reverse hit reads "Incineroar Flare
-// Blitz vs. Garchomp".
+export interface Matchup {
+  attacker: Slot;
+  defender: Slot;
+  ctx: DamageContext;
+  outcome: CalcOutcome;
+}
+
+/**
+ * Every active attacker into every active foe, grouped by the attacking side:
+ * in doubles, four hits from the left and four from the right.
+ */
+export function allMatchups(state: CalcState): Record<Side, Matchup[]> {
+  const pokemon = effectiveField(state);
+  const out: Record<Side, Matchup[]> = { left: [], right: [] };
+  for (const attacker of activeSlots(state)) {
+    for (const defender of foesOf(state, attacker)) {
+      const ctx = matchupContext(state, attacker, defender, pokemon);
+      out[sideOf(attacker)].push({ attacker, defender, ctx, outcome: runCalc(ctx) });
+    }
+  }
+  return out;
+}
+
+// One-line description of a hit, e.g. "Garchomp Earthquake vs. Incineroar".
 export function matchupLabel(ctx: DamageContext): string {
   const parts = [ctx.attacker.species || 'Attacker', ctx.move.name || 'move', 'vs.', ctx.defender.species || 'defender'];
   return parts.join(' ');

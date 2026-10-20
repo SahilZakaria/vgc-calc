@@ -8,7 +8,7 @@ import type { StageEffect } from '../appState';
 import { describeEffect, StageEffectNotes } from './StageEffectNotes';
 
 const effect = (over: Partial<StageEffect>): StageEffect => ({
-  slot: 'attacker',
+  slot: 'left1',
   source: "Incineroar's Intimidate",
   cause: null,
   changes: { atk: -1 },

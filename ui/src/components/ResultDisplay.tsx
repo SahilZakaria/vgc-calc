@@ -3,7 +3,7 @@ import './ResultDisplay.css';
 
 // Percent of max HP, floored to one decimal, the way Showdown's calc shows it
 // (87.54% displays as 87.5%, never rounded up to 87.6%).
-function percentOf(damage: number, maxHp: number): number {
+export function percentOf(damage: number, maxHp: number): number {
   return Math.floor((damage * 1000) / maxHp) / 10;
 }
 
@@ -15,7 +15,7 @@ function koLabel(hits: number): string {
 // Hits needed is counted by repeating the same roll, so the best case is the
 // max roll and the worst case is the min roll. If both need the same number of
 // hits, every roll reaches it ("guaranteed"); otherwise only high rolls do.
-function koDescription(rolls: readonly number[], maxHp: number): string {
+export function koDescription(rolls: readonly number[], maxHp: number): string {
   const minRoll = Math.min(...rolls);
   const maxRoll = Math.max(...rolls);
   if (maxRoll <= 0 || maxHp <= 0) return 'no damage';
@@ -25,15 +25,24 @@ function koDescription(rolls: readonly number[], maxHp: number): string {
   return bestCase === worstCase ? `guaranteed ${koLabel(bestCase)}` : `possible ${koLabel(bestCase)}`;
 }
 
+/** Min and max percent, one decimal, and the KO line, e.g. "50.4", "60.3", "guaranteed 2HKO". */
+export function damageSummary(result: DamageResult): { minPercent: string; maxPercent: string; ko: string } {
+  const { rolls, defenderMaxHp } = result;
+  return {
+    minPercent: percentOf(Math.min(...rolls), defenderMaxHp).toFixed(1),
+    maxPercent: percentOf(Math.max(...rolls), defenderMaxHp).toFixed(1),
+    ko: koDescription(rolls, defenderMaxHp),
+  };
+}
+
 export interface ResultDisplayProps {
   result: DamageResult;
 }
 
 export function ResultDisplay({ result }: ResultDisplayProps) {
   const { rolls, defenderMaxHp } = result;
-  const minPercent = percentOf(Math.min(...rolls), defenderMaxHp).toFixed(1);
-  const maxPercent = percentOf(Math.max(...rolls), defenderMaxHp).toFixed(1);
-  const summary = `${minPercent}% - ${maxPercent}% (${koDescription(rolls, defenderMaxHp)})`;
+  const { minPercent, maxPercent, ko } = damageSummary(result);
+  const summary = `${minPercent}% - ${maxPercent}% (${ko})`;
 
   return (
     <section className="result-display">

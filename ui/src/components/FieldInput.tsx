@@ -5,9 +5,11 @@ export interface FieldInputProps {
   field: FieldState;
   game: Game;
   onChange: (field: FieldState) => void;
+  /** Headings for the two side panels. Defaults to "Attacker side" and "Defender side". */
+  sideLabels?: Readonly<Record<SideKey, string>>;
 }
 
-type SideKey = 'attackerSide' | 'defenderSide';
+export type SideKey = 'attackerSide' | 'defenderSide';
 type BooleanSideKey = { [K in keyof SideState]: SideState[K] extends boolean ? K : never }[keyof SideState];
 type RuinKey = 'isBeadsOfRuin' | 'isSwordOfRuin' | 'isTabletsOfRuin' | 'isVesselOfRuin';
 type FieldToggleKey = 'isGravity' | 'isWonderRoom' | 'isMagicRoom';
@@ -133,7 +135,7 @@ function SideControls(props: {
   );
 }
 
-export function FieldInput({ field, game, onChange }: FieldInputProps) {
+export function FieldInput({ field, game, onChange, sideLabels }: FieldInputProps) {
   const update = (patch: Partial<FieldState>) => onChange({ ...field, ...patch });
   const showLegendaryEffects = game === 'gen9';
 
@@ -228,7 +230,7 @@ export function FieldInput({ field, game, onChange }: FieldInputProps) {
           <SideControls
             key={key}
             sideKey={key}
-            label={label}
+            label={sideLabels?.[key] ?? label}
             side={field[key]}
             onSideChange={(side) => update({ [key]: side })}
           />

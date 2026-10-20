@@ -170,4 +170,21 @@ describe('FieldInput rendering', () => {
     expect(html).toMatch(/id="field-defenderSide-auroraVeil"[^>]*checked=""/);
     expect(html).toMatch(/<option value="2" selected="">2 layers<\/option>/);
   });
+
+  it('names the side panels from sideLabels, defaulting to attacker and defender', () => {
+    const plain = renderToStaticMarkup(<FieldInput field={baseField()} game="champions" onChange={() => {}} />);
+    expect(plain).toContain('<legend>Attacker side</legend>');
+    expect(plain).toContain('<legend>Defender side</legend>');
+    const named = renderToStaticMarkup(
+      <FieldInput
+        field={baseField()}
+        game="champions"
+        onChange={() => {}}
+        sideLabels={{ attackerSide: 'Left side', defenderSide: 'Right side' }}
+      />,
+    );
+    expect(named).toContain('<legend>Left side</legend>');
+    expect(named).toContain('<legend>Right side</legend>');
+    expect(named).not.toContain('Attacker side');
+  });
 });
