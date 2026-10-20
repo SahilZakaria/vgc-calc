@@ -5,6 +5,8 @@ import { MatchupGrid } from './components/MatchupGrid';
 import { MoveInput } from './components/MoveInput';
 import { PokemonInput } from './components/PokemonInput';
 import { StageEffectNotes } from './components/StageEffectNotes';
+import { TurnOrderPanel } from './components/TurnOrderPanel';
+import { isHealingMove, useLegalData } from './components/legalData';
 import type { BoostStat } from './components/pokemonInputModel';
 import {
   activeSlots,
@@ -16,6 +18,8 @@ import {
   setManualStages,
   stageEffects,
   switchGame,
+  turnOrderFor,
+  turnOrderNames,
   updateSlot,
   type CalcState,
   type Side,
@@ -89,12 +93,22 @@ export function App({ initial = initialState }: AppProps = {}) {
   const shown = useMemo(() => effectiveField(state), [state]);
   const active = activeSlots(state);
 
+  // Triage needs Showdown's "heal" flag, which arrives with the dex data;
+  // re-run once it has loaded.
+  const dexReady = useLegalData();
+  const order = useMemo(() => turnOrderFor(state, isHealingMove, shown), [state, shown, dexReady]);
+  const orderNames = useMemo(() => turnOrderNames(state, SLOT_LABELS), [state]);
+  const turnOrderPanel = <TurnOrderPanel order={order} names={orderNames} slotLabels={SLOT_LABELS} />;
+
   const setPokemon = (slot: Slot) => (pokemon: Pokemon) => setState((s) => editPokemon(s, slot, pokemon));
   const setManual = (slot: Slot) => (stats: BoostStat[], manual: boolean) =>
     setState((s) => setManualStages(s, slot, stats, manual));
   const setMove = (slot: Slot) => (move: Move) => setState((s) => updateSlot(s, slot, { move }));
   const setCritical = (slot: Slot) => (isCritical: boolean) => setState((s) => updateSlot(s, slot, { isCritical }));
+  const setItemConsumed = (slot: Slot) => (itemConsumed: boolean) =>
+    setState((s) => updateSlot(s, slot, { itemConsumed }));
   const setField = (field: FieldState) => setState((s) => ({ ...s, field }));
+  const setTrickRoom = (isTrickRoom: boolean) => setState((s) => ({ ...s, isTrickRoom }));
   const setGame = (game: Game) => setState((s) => switchGame(s, game));
   const toggle = (side: Side) => (key: string) =>
     setExpanded((e) => ({ ...e, [side]: e[side] === key ? null : key }));
@@ -113,6 +127,7 @@ export function App({ initial = initialState }: AppProps = {}) {
           onSetManual={setManual(slot)}
           onMoveChange={setMove(slot)}
           onCriticalChange={setCritical(slot)}
+          onItemConsumedChange={setItemConsumed(slot)}
         />
       ));
 
@@ -143,7 +158,12 @@ export function App({ initial = initialState }: AppProps = {}) {
             onToggle={toggle('right')}
           />
           <p className="app-hint">Click a cell to see all 16 rolls.</p>
+          {/* Singles: under the grids in the middle column. */}
+          {!state.field.isDoubles && turnOrderPanel}
         </div>
+
+        {/* Doubles: a strip right under the results band. */}
+        {state.field.isDoubles && turnOrderPanel}
 
         <div className="app-side app-side-right" aria-label={SIDE_LABELS.right} role="group">
           {sideColumn('right')}
@@ -151,7 +171,14 @@ export function App({ initial = initialState }: AppProps = {}) {
       </main>
 
       <footer className="app-field">
-        <FieldInput game={state.game} field={state.field} onChange={setField} sideLabels={FIELD_SIDE_LABELS} />
+        <FieldInput
+          game={state.game}
+          field={state.field}
+          onChange={setField}
+          sideLabels={FIELD_SIDE_LABELS}
+          isTrickRoom={state.isTrickRoom}
+          onTrickRoomChange={setTrickRoom}
+        />
       </footer>
     </div>
   );
@@ -167,6 +194,7 @@ interface SlotPanelProps {
   onSetManual: (stats: BoostStat[], manual: boolean) => void;
   onMoveChange: (move: Move) => void;
   onCriticalChange: (isCritical: boolean) => void;
+  onItemConsumedChange: (itemConsumed: boolean) => void;
 }
 
 // One Pokemon on the field: its set, its one move (limited to its own
@@ -180,10 +208,13 @@ function SlotPanel({
   onSetManual,
   onMoveChange,
   onCriticalChange,
+  onItemConsumedChange,
 }: SlotPanelProps) {
   const entry = state.slots[slot];
   const species = pokemon.species;
   const mine = effects.filter((e) => e.slot === slot);
+  // Whether the item is already used is battle state the calc cannot see.
+  const hasUnburden = pokemon.ability === 'Unburden';
   return (
     <div className="app-slot" data-slot={slot}>
       <PokemonInput
@@ -209,6 +240,19 @@ function SlotPanel({
           />
           Crit
         </label>
+        {hasUnburden && (
+          <label
+            className="app-check app-unburden"
+            title="Unburden doubles Speed once the held item is used or lost. Its item no longer counts for Speed."
+          >
+            <input
+              type="checkbox"
+              checked={entry.itemConsumed}
+              onChange={(e) => onItemConsumedChange(e.currentTarget.checked)}
+            />
+            Item used (Unburden)
+          </label>
+        )}
       </div>
       <StageEffectNotes effects={mine} onSetManual={onSetManual} />
     </div>

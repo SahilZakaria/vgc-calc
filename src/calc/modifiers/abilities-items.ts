@@ -163,7 +163,7 @@ const KLUTZ_EXEMPT_ITEMS: ReadonlySet<string> = new Set([
 ]);
 
 /** util.js checkItem: Magic Room, or Klutz on the holder, removes the item. */
-function withItemChecked(pokemon: Pokemon, isMagicRoom: boolean): Pokemon {
+export function withItemChecked(pokemon: Pokemon, isMagicRoom: boolean): Pokemon {
   if (pokemon.item === null) return pokemon;
   const klutz = hasAbility(pokemon, 'Klutz') && !KLUTZ_EXEMPT_ITEMS.has(pokemon.item);
   return klutz || isMagicRoom ? { ...pokemon, item: null } : pokemon;

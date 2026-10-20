@@ -20,6 +20,26 @@ describe('App', () => {
     expect(html.indexOf('aria-label="Right side attacking"')).toBeLessThan(html.indexOf('aria-label="Right 1"'));
   });
 
+  it('shows the turn order right under the results grids, with a Trick Room toggle in the field panel', () => {
+    const at = (needle: string) => html.indexOf(needle);
+    expect(at('aria-label="Turn order"')).toBeGreaterThan(at('aria-label="Right side attacking"'));
+    expect(at('aria-label="Turn order"')).toBeLessThan(at('aria-label="Right 1"'));
+    expect(html.match(/data-entry="/g)).toHaveLength(4);
+    expect(html).toMatch(/id="field-isTrickRoom"/);
+    // No starting Pokemon has Unburden, so no item-used toggle yet.
+    expect(html).not.toContain('Item used (Unburden)');
+  });
+
+  it('offers the item-used toggle only to an Unburden holder', () => {
+    const withUnburden = () => {
+      const s = initialState();
+      const chomp = s.slots.left1;
+      return { ...s, slots: { ...s.slots, left1: { ...chomp, pokemon: { ...chomp.pokemon, ability: 'Unburden' } } } };
+    };
+    const out = renderToStaticMarkup(<App initial={withUnburden} />);
+    expect(out.match(/Item used \(Unburden\)/g)).toHaveLength(1);
+  });
+
   it('puts each bottom panel under the top panel in the same grid column', () => {
     const at = (label: string) => html.indexOf(`aria-label="${label}"`);
     expect(at('Left 1')).toBeLessThan(at('Left 2'));

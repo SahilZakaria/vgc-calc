@@ -14,6 +14,9 @@ import {
   setManualStages,
   stageEffects,
   switchGame,
+  turnOrderFor,
+  turnOrderNames,
+  unburdenActive,
   updateSlot,
   type CalcState,
   type Slot,
@@ -391,5 +394,69 @@ describe('Intimidate', () => {
     const gen9 = switchGame(ignored, 'gen9');
     expect(gen9.slots.left1.manualStages).toEqual(['atk']);
     expect(rolls(gen9, 'left1', 'right1')).toEqual(REF_EQ_UNINTIMIDATED);
+  });
+});
+
+// Speeds of the starting sets at level 50: base + 20 with 0 SP, and Timid
+// 32 SP Charizard is floor((floor((200 + 31 + 63) / 2) + 5) * 1.1) = 167.
+describe('turnOrderFor', () => {
+  const speeds = (s: CalcState) => Object.fromEntries(turnOrderFor(s).moves.map((m) => [m.entry.id, m.speed.speed]));
+
+  it("uses each side's own Tailwind", () => {
+    const start = initialState();
+    const leftWind: CalcState = {
+      ...start,
+      field: { ...start.field, attackerSide: { ...start.field.attackerSide, tailwind: true } },
+    };
+    expect(speeds(leftWind)).toEqual({ left1: 244, left2: 334, right1: 80, right2: 100 });
+    const rightWind: CalcState = {
+      ...start,
+      field: { ...start.field, defenderSide: { ...start.field.defenderSide, tailwind: true } },
+    };
+    expect(speeds(rightWind)).toEqual({ left1: 122, left2: 167, right1: 160, right2: 200 });
+  });
+
+  it('only counts the item-used toggle for an Unburden holder', () => {
+    const used = updateSlot(initialState(), 'left1', { itemConsumed: true });
+    expect(unburdenActive(used.slots.left1)).toBe(false);
+    expect(speeds(used).left1).toBe(122);
+    const chomp = used.slots.left1;
+    const unburden: CalcState = {
+      ...used,
+      slots: { ...used.slots, left1: { ...chomp, pokemon: { ...chomp.pokemon, ability: 'Unburden' } } },
+    };
+    expect(unburdenActive(unburden.slots.left1)).toBe(true);
+    expect(speeds(unburden).left1).toBe(244);
+  });
+
+  it('orders only the two active Pokemon in singles', () => {
+    const start = initialState();
+    const order = turnOrderFor({ ...start, field: { ...start.field, isDoubles: false } });
+    expect(order.moves.map((m) => m.entry.id)).toEqual(['left1', 'right1']);
+  });
+
+  it('asks the heal lookup about each move, for Triage', () => {
+    const start = initialState();
+    const gard = start.slots.right2;
+    const triage: CalcState = {
+      ...start,
+      slots: { ...start.slots, right2: { ...gard, pokemon: { ...gard.pokemon, ability: 'Triage' } } },
+    };
+    const order = turnOrderFor(triage, (_game, name) => name === 'Dazzling Gleam');
+    expect(order.moves[0]!.entry.id).toBe('right2');
+    expect(order.moves[0]!.priority.bracket).toBe(3);
+  });
+});
+
+describe('turnOrderNames', () => {
+  const labels = { left1: 'Left 1', left2: 'Left 2', right1: 'Right 1', right2: 'Right 2' } as const;
+
+  it('uses the species, adding the slot when two share one', () => {
+    const start = initialState();
+    expect(turnOrderNames(start, labels).left1).toBe('Garchomp');
+    const mirror: CalcState = { ...start, slots: { ...start.slots, right1: start.slots.left1 } };
+    const names = turnOrderNames(mirror, labels);
+    expect(names.left1).toBe('Garchomp (Left 1)');
+    expect(names.right1).toBe('Garchomp (Right 1)');
   });
 });

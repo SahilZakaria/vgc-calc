@@ -8,6 +8,7 @@
 
 import { calculate } from '../../src/calc/calculate';
 import { applyStageChanges, resolveIntimidate, type StageChanges } from '../../src/calc/intimidate';
+import { turnOrder, type TurnOrder, type TurnOrderEntry } from '../../src/calc/turn-order';
 import { spToEv } from '../../src/champions/stats';
 import type { DamageContext, DamageResult, FieldState, Game, Move, Pokemon, SideState, StatTable } from '../../src/types';
 import { findMove } from './components/moveData';
@@ -49,12 +50,20 @@ export interface SlotState {
   move: Move;
   isCritical: boolean;
   manualStages: readonly BoostStat[];
+  /**
+   * The held item has already been used or lost, so Unburden is active.
+   * Battle state the calc cannot know, so the user sets it. Only read for a
+   * Pokemon whose ability is Unburden.
+   */
+  itemConsumed: boolean;
 }
 
 /** Everything the calculator screen edits. */
 export interface CalcState {
   game: Game;
   field: FieldState;
+  /** Trick Room is up. FieldState (src/types.ts) has no flag for it. */
+  isTrickRoom: boolean;
   slots: Record<Slot, SlotState>;
 }
 
@@ -152,6 +161,7 @@ const slotState = (pokemon: Pokemon, move: Move): SlotState => ({
   move,
   isCritical: false,
   manualStages: [],
+  itemConsumed: false,
 });
 
 // Starting field, Champions doubles:
@@ -165,6 +175,7 @@ export function initialState(): CalcState {
   return {
     game,
     field: DEFAULT_FIELD,
+    isTrickRoom: false,
     slots: {
       left1: slotState(
         makePokemon(game, 'Garchomp', {
@@ -232,7 +243,7 @@ export function switchGame(state: CalcState, game: Game): CalcState {
   };
 }
 
-/** Replaces one slot's move or crit flag. */
+/** Replaces one slot's move, crit flag or item-consumed flag. */
 export function updateSlot(state: CalcState, slot: Slot, patch: Partial<Omit<SlotState, 'pokemon' | 'manualStages'>>): CalcState {
   return { ...state, slots: { ...state.slots, [slot]: { ...state.slots[slot], ...patch } } };
 }
@@ -449,4 +460,53 @@ export function matchupLabel(ctx: DamageContext): string {
 export function isSpread(ctx: DamageContext): boolean {
   const { target } = ctx.move;
   return ctx.field.isDoubles && (target === 'allAdjacent' || target === 'allAdjacentFoes');
+}
+
+// ---------------------------------------------------------------------------
+// Turn order
+// ---------------------------------------------------------------------------
+
+/** Unburden is active for this slot: the toggle only counts for an Unburden holder. */
+export function unburdenActive(entry: SlotState): boolean {
+  return entry.itemConsumed && entry.pokemon.ability === 'Unburden';
+}
+
+/**
+ * The order the active Pokemon's moves resolve this turn. Tailwind comes from
+ * each Pokemon's own side (FieldInput's attackerSide is the left side).
+ * `moveHeals` tells Triage which moves heal; the move data has no such flag.
+ */
+export function turnOrderFor(
+  state: CalcState,
+  moveHeals: (game: Game, moveName: string) => boolean = () => false,
+  pokemon: Record<Slot, Pokemon> = effectiveField(state),
+): TurnOrder {
+  const entries: TurnOrderEntry[] = activeSlots(state).map((slot) => {
+    const entry = state.slots[slot];
+    const side = sideOf(slot) === 'left' ? state.field.attackerSide : state.field.defenderSide;
+    return {
+      id: slot,
+      pokemon: pokemon[slot],
+      move: entry.move,
+      tailwind: side.tailwind,
+      itemConsumed: unburdenActive(entry),
+      moveHeals: moveHeals(state.game, entry.move.name),
+    };
+  });
+  return turnOrder({ game: state.game, field: state.field, isTrickRoom: state.isTrickRoom, entries });
+}
+
+/**
+ * How each Pokemon is named in the turn order: its species, with the slot
+ * added when two Pokemon on the field share a species.
+ */
+export function turnOrderNames(state: CalcState, slotLabels: Readonly<Record<Slot, string>>): Record<Slot, string> {
+  const species = (slot: Slot) => state.slots[slot].pokemon.species || slotLabels[slot];
+  const active = activeSlots(state);
+  const names = {} as Record<Slot, string>;
+  for (const slot of SLOTS) {
+    const shared = active.filter((s) => species(s) === species(slot)).length > 1;
+    names[slot] = shared ? `${species(slot)} (${slotLabels[slot]})` : species(slot);
+  }
+  return names;
 }

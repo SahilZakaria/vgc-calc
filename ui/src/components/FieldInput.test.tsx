@@ -49,9 +49,18 @@ const baseField = (): FieldState => ({
   defenderSide: emptySide(),
 });
 
-function setup(game: Game, field: FieldState = baseField()) {
+function setup(game: Game, field: FieldState = baseField(), isTrickRoom = false) {
   const onChange = vi.fn<(f: FieldState) => void>();
-  const nodes = expand(<FieldInput field={field} game={game} onChange={onChange} />);
+  const onTrickRoomChange = vi.fn<(on: boolean) => void>();
+  const nodes = expand(
+    <FieldInput
+      field={field}
+      game={game}
+      onChange={onChange}
+      isTrickRoom={isTrickRoom}
+      onTrickRoomChange={onTrickRoomChange}
+    />,
+  );
   const byId = (id: string) => {
     const el = nodes.find((n) => n.props.id === id);
     if (!el) throw new Error(`no element with id ${id}`);
@@ -66,8 +75,29 @@ function setup(game: Game, field: FieldState = baseField()) {
     return onChange.mock.calls[0]![0];
   };
   const hasId = (id: string) => nodes.some((n) => n.props.id === id);
-  return { fire, hasId, optionValues };
+  const checkedOf = (id: string) => byId(id).props.checked;
+  const toggleTrickRoom = (checked: boolean) => {
+    const handler = byId('field-isTrickRoom').props.onChange as (e: { currentTarget: { checked: boolean } }) => void;
+    handler({ currentTarget: { checked } });
+    return onTrickRoomChange.mock.calls;
+  };
+  return { fire, hasId, optionValues, checkedOf, toggleTrickRoom, onChange };
 }
+
+describe('FieldInput Trick Room', () => {
+  it('shows a Trick Room toggle in both games, reflecting the prop', () => {
+    for (const game of ['champions', 'gen9'] as const) {
+      expect(setup(game).checkedOf('field-isTrickRoom')).toBe(false);
+      expect(setup(game, baseField(), true).checkedOf('field-isTrickRoom')).toBe(true);
+    }
+  });
+
+  it('reports a toggle through onTrickRoomChange, leaving the field alone', () => {
+    const { toggleTrickRoom, onChange } = setup('champions');
+    expect(toggleTrickRoom(true)).toEqual([[true]]);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+});
 
 const RUIN_IDS = ['field-isBeadsOfRuin', 'field-isSwordOfRuin', 'field-isTabletsOfRuin', 'field-isVesselOfRuin'];
 
@@ -162,7 +192,7 @@ describe('FieldInput rendering', () => {
       isGravity: true,
       defenderSide: { ...emptySide(), auroraVeil: true, spikes: 2 },
     };
-    const html = renderToStaticMarkup(<FieldInput field={field} game="champions" onChange={() => {}} />);
+    const html = renderToStaticMarkup(<FieldInput field={field} game="champions" onChange={() => {}} isTrickRoom={false} onTrickRoomChange={() => {}} />);
     expect(html).toContain('Aurora Veil');
     expect(html).not.toContain('Ruin');
     expect(html).not.toContain('Harsh Sun');
@@ -172,7 +202,7 @@ describe('FieldInput rendering', () => {
   });
 
   it('names the side panels from sideLabels, defaulting to attacker and defender', () => {
-    const plain = renderToStaticMarkup(<FieldInput field={baseField()} game="champions" onChange={() => {}} />);
+    const plain = renderToStaticMarkup(<FieldInput field={baseField()} game="champions" onChange={() => {}} isTrickRoom={false} onTrickRoomChange={() => {}} />);
     expect(plain).toContain('<legend>Attacker side</legend>');
     expect(plain).toContain('<legend>Defender side</legend>');
     const named = renderToStaticMarkup(
@@ -180,6 +210,8 @@ describe('FieldInput rendering', () => {
         field={baseField()}
         game="champions"
         onChange={() => {}}
+        isTrickRoom={false}
+        onTrickRoomChange={() => {}}
         sideLabels={{ attackerSide: 'Left side', defenderSide: 'Right side' }}
       />,
     );

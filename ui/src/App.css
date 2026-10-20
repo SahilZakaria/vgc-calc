@@ -10,7 +10,7 @@
   max-width: 1600px;
   min-height: 100vh;
   margin: 0 auto;
-  padding: 8px 16px 10px;
+  padding: 8px 16px 6px;
 }
 
 .app *,
@@ -211,6 +211,24 @@
   top: 0;
   right: 0;
   font-size: 0.75rem;
+}
+
+/* The Unburden toggle sits on the same line, left of Crit. */
+.app-slot-move > .app-unburden {
+  position: absolute;
+  top: 0;
+  right: 3.6rem;
+  font-size: 0.75rem;
+}
+
+/* The turn order strip spans the board, right under the results band. */
+.app-main-doubles > .to {
+  grid-column: 1 / -1;
+}
+
+/* Singles: under the grids, clear of the hint above it. */
+.app-main-singles .to {
+  margin-top: 6px;
 }
 
 .app-check {

@@ -7,6 +7,9 @@ export interface FieldInputProps {
   onChange: (field: FieldState) => void;
   /** Headings for the two side panels. Defaults to "Attacker side" and "Defender side". */
   sideLabels?: Readonly<Record<SideKey, string>>;
+  /** Trick Room is up. Kept apart from `field` because FieldState has no flag for it. */
+  isTrickRoom: boolean;
+  onTrickRoomChange: (isTrickRoom: boolean) => void;
 }
 
 export type SideKey = 'attackerSide' | 'defenderSide';
@@ -135,7 +138,7 @@ function SideControls(props: {
   );
 }
 
-export function FieldInput({ field, game, onChange, sideLabels }: FieldInputProps) {
+export function FieldInput({ field, game, onChange, sideLabels, isTrickRoom, onTrickRoomChange }: FieldInputProps) {
   const update = (patch: Partial<FieldState>) => onChange({ ...field, ...patch });
   const showLegendaryEffects = game === 'gen9';
 
@@ -208,6 +211,7 @@ export function FieldInput({ field, game, onChange, sideLabels }: FieldInputProp
               onToggle={(checked) => update({ [key]: checked })}
             />
           ))}
+          <Toggle id="field-isTrickRoom" label="Trick Room" checked={isTrickRoom} onToggle={onTrickRoomChange} />
         </div>
 
         {showLegendaryEffects && (

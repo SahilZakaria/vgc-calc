@@ -119,6 +119,14 @@ export function legalItems(game: Game): readonly string[] {
   return items;
 }
 
+// True when Showdown flags the move as healing its user ("heal"), which
+// Triage boosts. The move data from @smogon/calc has no such flag. False
+// while the dex data is not loaded.
+export function isHealingMove(game: Game, moveName: string): boolean {
+  const move = dexes?.[game].moves.get(moveName);
+  return move !== undefined && move.exists && move.flags.heal === 1;
+}
+
 // Where a species' learnset continues. Battle-only and cosmetic formes
 // (Megas, Rotom appliances, Ogerpon masks) also learn their base forme's
 // moves. In Gen 9 an evolved Pokemon also learns its pre-evolution's moves
