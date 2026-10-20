@@ -1,16 +1,16 @@
-/* App shell: header, three-column main row, field strip. Colors come from
-   theme.css only. */
+/* App shell: header, the doubles board (top row, results band, bottom row),
+   field strip. Colors come from theme.css only. */
 
 .app {
   box-sizing: border-box;
   display: grid;
   grid-template-rows: auto auto auto;
   align-content: start;
-  gap: 10px;
+  gap: 8px;
   max-width: 1600px;
   min-height: 100vh;
   margin: 0 auto;
-  padding: 10px 16px 12px;
+  padding: 8px 16px 10px;
 }
 
 .app *,
@@ -94,54 +94,74 @@
   outline-offset: 2px;
 }
 
-/* Main row: left side's two Pokemon | results | right side's two Pokemon.
-   Sized so all four panels, the results and the field strip fit a 1440x900
-   window without scrolling. */
+/* Main area, laid out like a doubles board: the left side's two Pokemon in a
+   row across the top, both results grids in a band across the middle, the
+   right side's two Pokemon in a row across the bottom. Sized so the whole
+   screen, field strip included, fits a 1440x900 window without scrolling in
+   both games, with a results cell open in each grid. */
 .app-main {
   display: grid;
-  align-items: start;
-  gap: 8px;
-}
-
-.app-main-doubles {
-  grid-template-columns: minmax(0, 2fr) minmax(290px, 310px) minmax(0, 2fr);
-}
-
-.app-main-singles {
-  grid-template-columns: minmax(0, 1fr) minmax(290px, 360px) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
 }
 
 .app-side {
   display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: stretch;
-  grid-auto-columns: minmax(0, 1fr);
-  grid-auto-flow: column;
   gap: 8px;
   min-width: 0;
 }
 
+/* Singles keeps the same panel width, so its one Pokemon per side fills the
+   left half of the row. */
+
+/* The two grids side by side, each with its open cell's rolls beside it.
+   The min-height holds room for an open cell so opening one does not push
+   the bottom row down. */
 .app-results {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
   min-width: 0;
-  padding: 8px 10px 10px;
+  min-height: 156px;
+  padding: 6px 10px 8px;
   border: 1px solid var(--color-border);
   border-radius: 9px;
   background: var(--color-surface);
 }
 
+/* Sits in the band's bottom-right corner, under the right grid's rolls. */
 .app-hint {
+  position: absolute;
+  right: 12px;
+  bottom: 5px;
   margin: 0;
   color: var(--color-text-muted);
   font-size: 0.7rem;
 }
 
-/* One Pokemon: its set, then its move and crit toggle, then stage notes. */
+/* One Pokemon, laid out across: its title on the top border, its set (species,
+   types, nature, ability, item, status) in two lines, then the stat table on
+   the left with the move picker and stage notes to its right.
+
+   PokemonInput's own box is dissolved (display: contents) so its title, field
+   grid and stat table sit on this grid next to the move picker. Its section
+   element and aria-label are unchanged in the markup. */
 .app-slot {
-  display: flex;
-  flex-direction: column;
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-areas:
+    'set set'
+    'stats move'
+    'stats notes';
+  align-items: start;
+  gap: 6px 14px;
   min-width: 0;
+  padding: 10px 10px 6px;
   border: 1px solid var(--color-border);
   border-radius: 9px;
   background: var(--color-surface);
@@ -149,14 +169,15 @@
 
 .app-slot-move {
   position: relative;
-  padding: 0 8px 6px;
+  grid-area: move;
+  min-width: 0;
 }
 
 /* The crit toggle sits on the move label's line. */
 .app-slot-move > .app-check {
   position: absolute;
   top: 0;
-  right: 8px;
+  right: 0;
   font-size: 0.75rem;
 }
 
@@ -174,30 +195,69 @@
 }
 
 /* Layout and density overrides for the components inside this screen. The
-   components are built to stand alone; these fit four of them, side by side,
-   into one dense view without changing their markup. */
+   components are built to stand alone; these fit four of them, plus both
+   grids and the field strip, into one view without changing their markup. */
 
 .app .pki {
-  max-width: none;
-  padding: 6px 8px 4px;
-  border: 0;
-  background: transparent;
+  display: contents;
   font-size: 13px;
   line-height: 1.3;
 }
 
+/* The slot name sits on the panel's top border, like a fieldset legend. */
 .app .pki-title {
-  margin: 0 0 4px;
+  position: absolute;
+  top: -0.55rem;
+  left: 10px;
+  margin: 0;
+  padding: 0 5px;
+  background: var(--color-surface);
   color: var(--color-accent);
   font-size: 0.72rem;
   font-weight: 700;
+  line-height: 1;
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
+/* The set in two lines on a 12-column grid:
+     Species (3) | Level (1) | Type (4) | Tera (4, Gen 9 only)
+     Nature (3)  | Ability (3) | Item (3) | Status (3)                    */
 .app .pki-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 3px 6px;
+  grid-area: set;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 3px 8px;
+}
+
+.app .pki-grid > * {
+  grid-column: span 3;
+}
+
+.app .pki-grid > .pki-span-2 {
+  grid-column: span 3;
+}
+
+.app .pki-grid > :nth-child(2) {
+  grid-column: span 1;
+}
+
+.app .pki-grid > .pki-types {
+  grid-column: span 4;
+}
+
+/* Champions has no Tera; the type cell takes its place. */
+.app .pki-grid:not(:has(.pki-tera)) > .pki-types {
+  grid-column: span 8;
+}
+
+/* Tera goes on the first line; the dense flow keeps the second line full. */
+.app .pki-grid {
+  grid-auto-flow: row dense;
+}
+
+.app .pki-grid > .pki-tera {
+  grid-row: 1;
+  grid-column: 9 / span 4;
 }
 
 .app .pki-field {
@@ -263,12 +323,14 @@
 }
 
 .app .pki-stats {
-  margin-top: 4px;
+  grid-area: stats;
+  width: auto;
+  margin: 0;
 }
 
 .app .pki-stats th,
 .app .pki-stats td {
-  padding: 1px 2px;
+  padding: 1px 3px;
 }
 
 .app .pki-stats thead th {
@@ -284,7 +346,7 @@
 }
 
 .app .pki-number {
-  width: 2.6rem;
+  width: 2.9rem;
   padding: 0 0.25rem;
   appearance: textfield;
   -moz-appearance: textfield;
@@ -298,18 +360,17 @@
   -webkit-appearance: none;
 }
 
-/* Gen 9 adds an IV column; narrow the number boxes to fit. */
-.app .pki-stats:has(th:nth-child(6)) .pki-number {
-  width: 2.25rem;
-}
-
 .app .pki-boost {
-  width: 2.9rem;
+  width: 3rem;
   padding: 0 0.1rem;
 }
 
 .app .pki-auto {
   font-size: 0.55rem;
+}
+
+.app .pki-final {
+  min-width: 2.2rem;
 }
 
 .app .pki-stats tfoot td {
@@ -335,17 +396,21 @@
   padding: 0.1rem 0.3rem;
 }
 
-/* Move details in three columns. */
+/* Move details in two lines: type, category, power, target, then priority,
+   hits and flags. */
 .app .move-input__details {
-  grid-template-columns: repeat(3, minmax(0, auto));
+  grid-template-columns: repeat(4, minmax(0, auto));
   justify-content: space-between;
-  gap: 0 0.5rem;
-  margin: 0;
+  gap: 2px 0.75rem;
+  margin: 2px 0 0;
 }
 
-.app .move-input__field--power,
-.app .move-input__field--flags {
+.app .move-input__field--power {
   grid-column: auto;
+}
+
+.app .move-input__field--flags {
+  grid-column: span 2;
 }
 
 .app .move-input__field dt {
@@ -356,6 +421,10 @@
   gap: 0.3rem;
   margin: 0;
   font-size: 0.75rem;
+}
+
+.app .move-input__flag {
+  font-size: 0.7rem;
 }
 
 .app .move-input__override {
@@ -373,9 +442,9 @@
 }
 
 .app .sen {
+  grid-area: notes;
   max-width: none;
   margin: 0;
-  padding: 0 8px 6px;
   gap: 3px;
   font-size: 11px;
   line-height: 1.25;
@@ -386,10 +455,26 @@
   padding: 2px 6px;
 }
 
+.app .sen-button {
+  min-height: 1.5rem;
+}
+
+/* Each grid: the table, with its open cell's full result to the right. */
+.app .mg {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  align-items: start;
+  gap: 10px;
+}
+
+.app .mg-detail {
+  padding: 4px 8px 6px;
+}
+
 .app .result-display {
   padding: 0;
   border: 0;
-  gap: 0.3rem;
+  gap: 0.25rem;
 }
 
 .app .result-display__summary {
@@ -418,10 +503,11 @@
   font-size: 0.75rem;
 }
 
-/* Field: general settings and both sides in one row. */
+/* Field strip, three lines tall: general settings, then each side. The sides'
+   spikes select joins their toggle grid as its last cell. */
 .app .field-input {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr) minmax(0, 1.5fr);
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr);
   gap: 8px;
   font-size: 13px;
 }
@@ -431,41 +517,102 @@
 }
 
 .app .field-input__group {
-  padding: 2px 10px 6px;
-  gap: 4px;
+  padding: 0 10px 6px;
+  gap: 3px;
+}
+
+.app .field-input__group > legend {
+  font-size: 0.8rem;
+}
+
+.app .field-input__format {
+  gap: 12px;
+}
+
+/* Format, weather and terrain on the first line. */
+.app .field-input > .field-input__group {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-content: start;
+  column-gap: 16px;
+}
+
+.app .field-input > .field-input__group > .field-input__toggles {
+  grid-column: 1 / -1;
 }
 
 .app .field-input__selects {
   gap: 4px 12px;
 }
 
+.app .field-input__select select {
+  padding: 1px 4px;
+}
+
 .app .field-input__toggles {
-  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
-  gap: 1px 8px;
+  grid-template-columns: repeat(4, minmax(0, auto));
+  justify-content: space-between;
+  gap: 1px 10px;
 }
 
 .app .field-input__ruin {
-  padding-top: 4px;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.app .field-input__side {
+  display: grid;
+  align-content: start;
+  grid-template-columns: repeat(3, minmax(0, auto));
+  justify-content: space-between;
+  gap: 1px 10px;
+}
+
+.app .field-input__side > .field-input__toggles {
+  display: contents;
 }
 
 /* Below desktop width, stack instead of squeezing. */
 @media (max-width: 1100px) {
-  .app-main-doubles,
-  .app-main-singles {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .app-results {
-    order: -1;
-  }
-
   .app .field-input {
     grid-template-columns: minmax(0, 1fr);
   }
 }
 
-@media (max-width: 640px) {
-  .app-side {
-    grid-auto-flow: row;
+@media (max-width: 900px) {
+  .app-side,
+  .app-results,
+  .app .mg {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .app-hint {
+    position: static;
+    order: 1;
+  }
+}
+
+@media (max-width: 520px) {
+  .app-slot {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'set'
+      'stats'
+      'move'
+      'notes';
+  }
+
+  .app .pki-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .app .pki-grid > *,
+  .app .pki-grid > :nth-child(2),
+  .app .pki-grid > .pki-span-2,
+  .app .pki-grid > .pki-types,
+  .app .pki-grid:not(:has(.pki-tera)) > .pki-types,
+  .app .pki-grid > .pki-tera {
+    grid-row: auto;
+    grid-column: auto;
   }
 }
