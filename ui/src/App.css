@@ -96,8 +96,8 @@
 
 /* Main area in doubles, laid out like a doubles board: the left side's two
    Pokemon in a row across the top, both results grids in a band across the
-   middle, the right side's two Pokemon (mirrored, see BOARD_ORDER in App.tsx)
-   in a row across the bottom. Sized so the whole
+   middle, the right side's two Pokemon in a row across the bottom, each
+   panel above or below its own grid column (see BOARD_ORDER in App.tsx). Sized so the whole
    screen, field strip included, fits a 1440x900 window without scrolling in
    both games, with a results cell open in each grid. */
 .app-main {
@@ -142,11 +142,19 @@
 }
 
 /* Singles: one Pokemon a side, in the two-Pokemon arrangement. The left
-   Pokemon, the results and the right Pokemon sit in one row, each panel
-   taking its full column, with both grids stacked in the middle. */
+   Pokemon, the results and the right Pokemon sit in one row, with both grids
+   stacked in the middle. The page drops its width cap, the row takes the
+   height the header and field strip leave, and all three columns stretch to
+   fill it, the Pokemon panels taking the larger share. */
+.app-singles {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  align-content: stretch;
+  max-width: none;
+}
+
 .app-main-singles {
-  grid-template-columns: minmax(0, 1fr) minmax(300px, 380px) minmax(0, 1fr);
-  align-items: start;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.75fr) minmax(0, 1fr);
+  align-items: stretch;
   gap: 12px;
 }
 

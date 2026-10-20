@@ -50,12 +50,13 @@ const SLOT_LABELS: Readonly<Record<Slot, string>> = {
 };
 
 // On-screen order of each side's panels. The left side runs across the top and
-// the right side across the bottom, mirrored the way a doubles board faces:
-// Left 1 sits above Right 2 and Left 2 above Right 1. Rendered in this order
-// (not reordered with CSS) so Tab order follows what is on screen.
+// the right side across the bottom, in slot order, so Left 1 sits above Right 1
+// and Left 2 above Right 2: each panel lines up with its own column in the
+// results grids. Rendered in this order (not reordered with CSS) so Tab order
+// follows what is on screen.
 export const BOARD_ORDER: Readonly<Record<Side, readonly Slot[]>> = {
   left: ['left1', 'left2'],
-  right: ['right2', 'right1'],
+  right: ['right1', 'right2'],
 };
 
 const SIDE_LABELS: Readonly<Record<Side, string>> = { left: 'Left side', right: 'Right side' };
@@ -116,7 +117,7 @@ export function App({ initial = initialState }: AppProps = {}) {
       ));
 
   return (
-    <div className="app">
+    <div className={state.field.isDoubles ? 'app' : 'app app-singles'}>
       <header className="app-header">
         <h1 className="app-title">VGC Calc</h1>
         <Segmented label="Game" value={state.game} options={GAME_OPTIONS} onChange={setGame} />

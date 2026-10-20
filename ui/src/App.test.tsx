@@ -20,10 +20,10 @@ describe('App', () => {
     expect(html.indexOf('aria-label="Right side attacking"')).toBeLessThan(html.indexOf('aria-label="Right 1"'));
   });
 
-  it('mirrors the bottom row so Left 1 faces Right 2 and Left 2 faces Right 1', () => {
+  it('puts each bottom panel under the top panel in the same grid column', () => {
     const at = (label: string) => html.indexOf(`aria-label="${label}"`);
     expect(at('Left 1')).toBeLessThan(at('Left 2'));
-    expect(at('Right 2')).toBeLessThan(at('Right 1'));
+    expect(at('Right 1')).toBeLessThan(at('Right 2'));
     expect(html).toContain('class="app-main app-main-doubles"');
   });
 
@@ -98,6 +98,7 @@ describe('App in singles', () => {
   const html = renderToStaticMarkup(<App initial={singles} />);
 
   it('shows only the first Pokemon on each side, in the singles layout', () => {
+    expect(html).toContain('class="app app-singles"');
     expect(html).toContain('class="app-main app-main-singles"');
     expect(html.match(/class="pki"/g)).toHaveLength(2);
     expect(html).toContain('aria-label="Left 1"');
