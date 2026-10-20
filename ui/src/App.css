@@ -94,9 +94,10 @@
   outline-offset: 2px;
 }
 
-/* Main area, laid out like a doubles board: the left side's two Pokemon in a
-   row across the top, both results grids in a band across the middle, the
-   right side's two Pokemon in a row across the bottom. Sized so the whole
+/* Main area in doubles, laid out like a doubles board: the left side's two
+   Pokemon in a row across the top, both results grids in a band across the
+   middle, the right side's two Pokemon (mirrored, see BOARD_ORDER in App.tsx)
+   in a row across the bottom. Sized so the whole
    screen, field strip included, fits a 1440x900 window without scrolling in
    both games, with a results cell open in each grid. */
 .app-main {
@@ -113,8 +114,6 @@
   min-width: 0;
 }
 
-/* Singles keeps the same panel width, so its one Pokemon per side fills the
-   left half of the row. */
 
 /* The two grids side by side, each with its open cell's rolls beside it.
    The min-height holds room for an open cell so opening one does not push
@@ -140,6 +139,31 @@
   margin: 0;
   color: var(--color-text-muted);
   font-size: 0.7rem;
+}
+
+/* Singles: one Pokemon a side, in the two-Pokemon arrangement. The left
+   Pokemon, the results and the right Pokemon sit in one row, each panel
+   taking its full column, with both grids stacked in the middle. */
+.app-main-singles {
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 380px) minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+}
+
+.app-main-singles .app-side,
+.app-main-singles .app-results,
+.app .app-main-singles .mg {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.app-main-singles .app-results {
+  align-content: start;
+  gap: 12px;
+  min-height: 0;
+}
+
+.app-main-singles .app-hint {
+  position: static;
 }
 
 /* One Pokemon, laid out across: its title on the top border, its set (species,
@@ -575,6 +599,11 @@
 /* Below desktop width, stack instead of squeezing. */
 @media (max-width: 1100px) {
   .app .field-input {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Singles stacks: left Pokemon, results, right Pokemon. */
+  .app-main-singles {
     grid-template-columns: minmax(0, 1fr);
   }
 }

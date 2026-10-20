@@ -6,6 +6,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { App } from './App';
+import { initialState } from './appState';
 
 describe('App', () => {
   const html = renderToStaticMarkup(<App />);
@@ -17,6 +18,13 @@ describe('App', () => {
     expect(html.match(/class="pki"/g)).toHaveLength(4);
     expect(html.indexOf('aria-label="Left 2"')).toBeLessThan(html.indexOf('aria-label="Left side attacking"'));
     expect(html.indexOf('aria-label="Right side attacking"')).toBeLessThan(html.indexOf('aria-label="Right 1"'));
+  });
+
+  it('mirrors the bottom row so Left 1 faces Right 2 and Left 2 faces Right 1', () => {
+    const at = (label: string) => html.indexOf(`aria-label="${label}"`);
+    expect(at('Left 1')).toBeLessThan(at('Left 2'));
+    expect(at('Right 2')).toBeLessThan(at('Right 1'));
+    expect(html).toContain('class="app-main app-main-doubles"');
   });
 
   it('gives each Pokemon its own move picker and crit toggle', () => {
@@ -79,5 +87,44 @@ describe('App', () => {
   it('passes Champions mode to the Pokemon inputs (SP column, fixed level)', () => {
     expect(html.match(/Level 50 \(fixed in Champions\)/g)).toHaveLength(4);
     expect(html).not.toContain('Tera type');
+  });
+});
+
+describe('App in singles', () => {
+  const singles = () => {
+    const state = initialState();
+    return { ...state, field: { ...state.field, isDoubles: false } };
+  };
+  const html = renderToStaticMarkup(<App initial={singles} />);
+
+  it('shows only the first Pokemon on each side, in the singles layout', () => {
+    expect(html).toContain('class="app-main app-main-singles"');
+    expect(html.match(/class="pki"/g)).toHaveLength(2);
+    expect(html).toContain('aria-label="Left 1"');
+    expect(html).toContain('aria-label="Right 1"');
+    expect(html).not.toContain('aria-label="Left 2"');
+    expect(html).not.toContain('aria-label="Right 2"');
+  });
+
+  it('puts the results between the two Pokemon', () => {
+    const at = (label: string) => html.indexOf(`aria-label="${label}"`);
+    expect(at('Left 1')).toBeLessThan(at('Left side attacking'));
+    expect(at('Right side attacking')).toBeLessThan(at('Right 1'));
+    expect(html.match(/class="mg-cell"/g)).toHaveLength(2);
+  });
+
+  it('brings back both second Pokemon, sets intact, when doubles is turned back on', () => {
+    // The Format toggle only replaces state.field; this is that state.
+    const back = () => {
+      const state = singles();
+      return { ...state, field: { ...state.field, isDoubles: true } };
+    };
+    const again = renderToStaticMarkup(<App initial={back} />);
+    expect(again).toContain('class="app-main app-main-doubles"');
+    expect(again.match(/class="pki"/g)).toHaveLength(4);
+    expect(again).toContain('Charizard&#x27;s move');
+    expect(again).toContain('Gardevoir&#x27;s move');
+    expect(again).toContain('value="Heat Wave"');
+    expect(again).toContain('value="Dazzling Gleam"');
   });
 });

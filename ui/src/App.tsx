@@ -14,7 +14,6 @@ import {
   effectiveField,
   initialState,
   setManualStages,
-  SIDE_SLOTS,
   stageEffects,
   switchGame,
   updateSlot,
@@ -50,13 +49,27 @@ const SLOT_LABELS: Readonly<Record<Slot, string>> = {
   right2: 'Right 2',
 };
 
+// On-screen order of each side's panels. The left side runs across the top and
+// the right side across the bottom, mirrored the way a doubles board faces:
+// Left 1 sits above Right 2 and Left 2 above Right 1. Rendered in this order
+// (not reordered with CSS) so Tab order follows what is on screen.
+export const BOARD_ORDER: Readonly<Record<Side, readonly Slot[]>> = {
+  left: ['left1', 'left2'],
+  right: ['right2', 'right1'],
+};
+
 const SIDE_LABELS: Readonly<Record<Side, string>> = { left: 'Left side', right: 'Right side' };
 
 // FieldInput's attackerSide is the left side; see fieldFor in appState.ts.
 const FIELD_SIDE_LABELS = { attackerSide: SIDE_LABELS.left, defenderSide: SIDE_LABELS.right } as const;
 
-export function App() {
-  const [state, setState] = useState<CalcState>(initialState);
+export interface AppProps {
+  /** Starting state; tests pass one to render other setups. */
+  initial?: () => CalcState;
+}
+
+export function App({ initial = initialState }: AppProps = {}) {
+  const [state, setState] = useState<CalcState>(initial);
   const [theme, setTheme] = useState<ThemePreference>(() => loadThemePreference(browserStorage()));
   // One expanded cell per results grid, keyed by matchupKey().
   const [expanded, setExpanded] = useState<Record<Side, string | null>>({ left: null, right: null });
@@ -86,7 +99,7 @@ export function App() {
     setExpanded((e) => ({ ...e, [side]: e[side] === key ? null : key }));
 
   const sideColumn = (side: Side) =>
-    SIDE_SLOTS[side]
+    BOARD_ORDER[side]
       .filter((slot) => active.includes(slot))
       .map((slot) => (
         <SlotPanel
