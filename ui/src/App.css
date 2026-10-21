@@ -115,7 +115,7 @@
    edge), so on wide windows the board is exactly the page width and on
    narrower ones it gives up at most the rail's width. */
 .app-main-doubles {
-  --rail-width: 140px;
+  --rail-width: 128px;
   --rail-gap: 8px;
   grid-template-columns: minmax(0, 1fr) var(--rail-width);
   gap: 6px var(--rail-gap);
@@ -133,10 +133,12 @@
 }
 
 /* The rail is as tall as the board and never makes the page taller: its
-   own height is zero and it stretches to the row the board sets. The turn
-   order panel grows to the board's bottom edge so no empty strip is left
-   under it; very long reasons scroll inside the rail. The top padding
-   clears the panel titles that sit on their top borders. */
+   own height is zero and it stretches to the row the board sets. Its panels
+   keep their natural height and sit as one block centered in that space;
+   the auto margins do the centering, so when long reasons overflow, the
+   block falls back to the top and scrolls inside the rail without its first
+   panel being cut off. The top padding clears the panel titles that sit on
+   their top borders. */
 .app-rail {
   display: flex;
   flex-direction: column;
@@ -148,8 +150,12 @@
   overflow-y: auto;
 }
 
-.app-rail > .to {
-  flex: 1 0 auto;
+.app-rail > :first-child {
+  margin-top: auto;
+}
+
+.app-rail > :last-child {
+  margin-bottom: auto;
 }
 
 /* Compact entries for the narrow rail: smaller type, the place number in a
@@ -157,20 +163,20 @@
    wrapping under them. */
 .app-rail .to,
 .app-rail .fen {
-  padding: 9px 5px 5px;
+  padding: 9px 4px 4px;
   font-size: 12px;
 }
 
 .app-rail .to-title,
 .app-rail .fen-title {
-  left: 6px;
-  padding: 0 4px;
+  left: 5px;
+  padding: 0 3px;
   font-size: 0.66rem;
   letter-spacing: 0.02em;
 }
 
 .app-rail .to-copy {
-  right: 6px;
+  right: 5px;
   padding: 0 5px;
 }
 
@@ -180,13 +186,18 @@
 
 .app-rail .to-list,
 .app-rail .fen-list {
-  gap: 4px;
+  gap: 3px;
 }
 
 .app-rail .to-item {
-  grid-template-columns: 0.9rem minmax(0, 1fr);
+  grid-template-columns: 0.8rem minmax(0, 1fr);
   gap: 3px;
-  padding: 3px 5px 4px 2px;
+  padding: 2px 4px 3px 2px;
+  border-radius: 6px;
+}
+
+.app-rail .to-body {
+  line-height: 1.2;
 }
 
 .app-rail .to-place {
@@ -227,7 +238,7 @@
 }
 
 .app-rail .fen-item {
-  padding: 3px 5px;
+  padding: 2px 4px;
 }
 
 .app-rail .fen-head {
