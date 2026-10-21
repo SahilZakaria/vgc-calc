@@ -8,7 +8,7 @@
   grid-template-rows: auto auto auto;
   align-content: start;
   gap: 8px;
-  max-width: 1760px;
+  max-width: 1600px;
   min-height: 100vh;
   margin: 0 auto;
   padding: 8px 16px 6px;
@@ -109,9 +109,19 @@
   gap: 6px;
 }
 
+/* The rail is a narrow column that hangs into the page's right margin. The
+   page keeps its 1600px width, and main reaches past its right edge by as
+   much of the rail as the margin can hold (keeping 8px clear of the window
+   edge), so on wide windows the board is exactly the page width and on
+   narrower ones it gives up at most the rail's width. */
 .app-main-doubles {
-  grid-template-columns: minmax(0, 1fr) clamp(240px, 17vw, 330px);
-  gap: 12px;
+  --rail-width: 140px;
+  --rail-gap: 8px;
+  grid-template-columns: minmax(0, 1fr) var(--rail-width);
+  gap: 6px var(--rail-gap);
+  margin-right: calc(
+    -1 * clamp(0px, (100vw - 1600px) / 2 - 8px, var(--rail-width) + var(--rail-gap))
+  );
 }
 
 .app-board {
@@ -123,18 +133,110 @@
 }
 
 /* The rail is as tall as the board and never makes the page taller: its
-   own height is zero and it stretches to the row the board sets. Long
-   reasons scroll inside it. The top padding clears the panel titles that
-   sit on their top borders. */
+   own height is zero and it stretches to the row the board sets. The turn
+   order panel grows to the board's bottom edge so no empty strip is left
+   under it; very long reasons scroll inside the rail. The top padding
+   clears the panel titles that sit on their top borders. */
 .app-rail {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
   height: 0;
   min-height: 100%;
   min-width: 0;
   padding-top: 8px;
   overflow-y: auto;
+}
+
+.app-rail > .to {
+  flex: 1 0 auto;
+}
+
+/* Compact entries for the narrow rail: smaller type, the place number in a
+   slim column, name and move each on their own line, and the reason
+   wrapping under them. */
+.app-rail .to,
+.app-rail .fen {
+  padding: 9px 5px 5px;
+  font-size: 12px;
+}
+
+.app-rail .to-title,
+.app-rail .fen-title {
+  left: 6px;
+  padding: 0 4px;
+  font-size: 0.66rem;
+  letter-spacing: 0.02em;
+}
+
+.app-rail .to-copy {
+  right: 6px;
+  padding: 0 5px;
+}
+
+.app-rail .to-room {
+  font-size: 0.66rem;
+}
+
+.app-rail .to-list,
+.app-rail .fen-list {
+  gap: 4px;
+}
+
+.app-rail .to-item {
+  grid-template-columns: 0.9rem minmax(0, 1fr);
+  gap: 3px;
+  padding: 3px 5px 4px 2px;
+}
+
+.app-rail .to-place {
+  font-size: 0.95rem;
+}
+
+/* "2-3" breaks after its hyphen in the slim column. */
+.app-rail .to-item-tie .to-place {
+  font-size: 0.7rem;
+  line-height: 1.2;
+}
+
+.app-rail .to-line {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+}
+
+.app-rail .to-name,
+.app-rail .to-move {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.app-rail .to-move {
+  font-size: 0.92em;
+}
+
+.app-rail .to-tag {
+  margin-top: 1px;
+  font-size: 0.58rem;
+}
+
+.app-rail .to-reason,
+.app-rail .fen-detail {
+  font-size: 0.66rem;
+  line-height: 1.25;
+}
+
+.app-rail .fen-item {
+  padding: 3px 5px;
+}
+
+.app-rail .fen-head {
+  flex-wrap: wrap;
+  gap: 2px 6px;
+}
+
+.app-rail .fen-headline {
+  overflow-wrap: anywhere;
 }
 
 .app-side {
@@ -664,6 +766,7 @@
   /* Doubles: the rail drops under the board at its natural height. */
   .app-main-doubles {
     grid-template-columns: minmax(0, 1fr);
+    margin-right: 0;
   }
 
   .app-rail {
