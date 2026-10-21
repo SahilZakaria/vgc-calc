@@ -56,4 +56,17 @@ describe('TurnOrderPanel', () => {
     expect(items(html)[0]).toBe('left2');
     expect(html).toContain('priority +3');
   });
+
+  it('lists each place with name and move on one line and the reason under it, plus a Copy button', () => {
+    const html = render(initialState());
+    expect(html).toMatch(
+      /<span class="to-place"[^>]*>1<\/span><span class="to-body"><span class="to-line"><span class="to-name">Charizard<\/span><span class="to-move">Heat Wave<\/span><\/span><span class="to-reason">167 Speed<\/span>/,
+    );
+    expect(html).toContain('>Copy</button>');
+  });
+
+  it('states Trick Room in the panel body, not in the title', () => {
+    const html = render({ ...initialState(), isTrickRoom: true });
+    expect(html).toContain('<h2 class="to-title">Turn order</h2><p class="to-room">Trick Room:');
+  });
 });

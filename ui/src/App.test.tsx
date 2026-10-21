@@ -20,10 +20,13 @@ describe('App', () => {
     expect(html.indexOf('aria-label="Right side attacking"')).toBeLessThan(html.indexOf('aria-label="Right 1"'));
   });
 
-  it('shows the turn order right under the results grids, with a Trick Room toggle in the field panel', () => {
+  it('shows the turn order in a rail beside the board, with a Trick Room toggle in the field panel', () => {
     const at = (needle: string) => html.indexOf(needle);
-    expect(at('aria-label="Turn order"')).toBeGreaterThan(at('aria-label="Right side attacking"'));
-    expect(at('aria-label="Turn order"')).toBeLessThan(at('aria-label="Right 1"'));
+    // The board (both rows and the grids) comes first, then the rail.
+    expect(at('class="app-board"')).toBeLessThan(at('class="app-rail"'));
+    expect(at('aria-label="Right 2"')).toBeLessThan(at('class="app-rail"'));
+    expect(at('class="app-rail"')).toBeLessThan(at('aria-label="Turn order"'));
+    expect(html).toContain('>Copy</button>');
     expect(html.match(/data-entry="/g)).toHaveLength(4);
     expect(html).toMatch(/id="field-isTrickRoom"/);
     // No starting Pokemon has Unburden, so no item-used toggle yet.
@@ -147,5 +150,23 @@ describe('App in singles', () => {
     expect(again).toContain('Gardevoir&#x27;s move');
     expect(again).toContain('value="Heat Wave"');
     expect(again).toContain('value="Dazzling Gleam"');
+  });
+
+  it('shows no switch-in field notes when no ability sets weather or terrain', () => {
+    expect(html).not.toContain('Weather and terrain from abilities');
+    expect(html).not.toContain('field-input__source');
+  });
+
+  it('applies an ability weather: note in the rail, badge by the dropdown, select showing it', () => {
+    const withDrizzle = () => {
+      const s = initialState();
+      const gard = s.slots.right2;
+      return { ...s, slots: { ...s.slots, right2: { ...gard, pokemon: { ...gard.pokemon, ability: 'Drizzle' } } } };
+    };
+    const out = renderToStaticMarkup(<App initial={withDrizzle} />);
+    expect(out).toContain('Weather: Rain from Gardevoir&#x27;s Drizzle');
+    expect(out).toMatch(/field-input__source--ability[^>]*>Drizzle</);
+    expect(out).toMatch(/<option value="rain" selected="">/);
+    expect(out.indexOf('class="app-rail"')).toBeLessThan(out.indexOf('Weather and terrain from abilities'));
   });
 });

@@ -10,6 +10,30 @@ export interface FieldInputProps {
   /** Trick Room is up. Kept apart from `field` because FieldState has no flag for it. */
   isTrickRoom: boolean;
   onTrickRoomChange: (isTrickRoom: boolean) => void;
+  /**
+   * Where the weather shown comes from, shown beside its select, e.g. a
+   * switch-in ability. Leave out when the select is the only source.
+   */
+  weatherSource?: FieldSourceBadge;
+  terrainSource?: FieldSourceBadge;
+}
+
+export interface FieldSourceBadge {
+  /** Short text, e.g. "Drizzle" or "by hand". */
+  text: string;
+  /** 'ability': set automatically. 'manual': picked by hand over an ability. */
+  kind: 'ability' | 'manual';
+  /** Longer explanation for the tooltip. */
+  title?: string;
+}
+
+function SourceBadge({ badge }: { badge: FieldSourceBadge | undefined }) {
+  if (!badge) return null;
+  return (
+    <span className={`field-input__source field-input__source--${badge.kind}`} title={badge.title}>
+      {badge.text}
+    </span>
+  );
 }
 
 export type SideKey = 'attackerSide' | 'defenderSide';
@@ -138,7 +162,16 @@ function SideControls(props: {
   );
 }
 
-export function FieldInput({ field, game, onChange, sideLabels, isTrickRoom, onTrickRoomChange }: FieldInputProps) {
+export function FieldInput({
+  field,
+  game,
+  onChange,
+  sideLabels,
+  isTrickRoom,
+  onTrickRoomChange,
+  weatherSource,
+  terrainSource,
+}: FieldInputProps) {
   const update = (patch: Partial<FieldState>) => onChange({ ...field, ...patch });
   const showLegendaryEffects = game === 'gen9';
 
@@ -184,6 +217,7 @@ export function FieldInput({ field, game, onChange, sideLabels, isTrickRoom, onT
                 </option>
               ))}
             </select>
+            <SourceBadge badge={weatherSource} />
           </label>
           <label className="field-input__select" htmlFor="field-terrain">
             <span>Terrain</span>
@@ -198,6 +232,7 @@ export function FieldInput({ field, game, onChange, sideLabels, isTrickRoom, onT
                 </option>
               ))}
             </select>
+            <SourceBadge badge={terrainSource} />
           </label>
         </div>
 

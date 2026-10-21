@@ -7,10 +7,27 @@
 // can load this file.
 
 import { calculate } from '../../src/calc/calculate';
+import {
+  resolveSwitchInField,
+  type FieldAbilityResult,
+  type FieldKind,
+  type SwitchInEntry,
+} from '../../src/calc/field-abilities';
 import { applyStageChanges, resolveIntimidate, type StageChanges } from '../../src/calc/intimidate';
 import { turnOrder, type TurnOrder, type TurnOrderEntry } from '../../src/calc/turn-order';
 import { spToEv } from '../../src/champions/stats';
-import type { DamageContext, DamageResult, FieldState, Game, Move, Pokemon, SideState, StatTable } from '../../src/types';
+import type {
+  DamageContext,
+  DamageResult,
+  FieldState,
+  Game,
+  Move,
+  Pokemon,
+  SideState,
+  StatTable,
+  Terrain,
+  Weather,
+} from '../../src/types';
 import { findMove } from './components/moveData';
 import { applySpecies, BOOST_STATS, normalizeForGame, type BoostStat } from './components/pokemonInputModel';
 
@@ -64,6 +81,13 @@ export interface CalcState {
   field: FieldState;
   /** Trick Room is up. FieldState (src/types.ts) has no flag for it. */
   isTrickRoom: boolean;
+  /**
+   * The user picked the weather by hand, or chose to ignore it, while a
+   * Pokemon's ability sets it: `field.weather` is used instead of the
+   * ability's weather. Same for terrain. See switchInField.
+   */
+  ignoreAbilityWeather: boolean;
+  ignoreAbilityTerrain: boolean;
   slots: Record<Slot, SlotState>;
 }
 
@@ -176,6 +200,8 @@ export function initialState(): CalcState {
     game,
     field: DEFAULT_FIELD,
     isTrickRoom: false,
+    ignoreAbilityWeather: false,
+    ignoreAbilityTerrain: false,
     slots: {
       left1: slotState(
         makePokemon(game, 'Garchomp', {
@@ -379,6 +405,93 @@ export function setManualStages(state: CalcState, slot: Slot, stats: readonly Bo
 }
 
 // ---------------------------------------------------------------------------
+// Switch-in weather and terrain
+// ---------------------------------------------------------------------------
+
+/** The weather or terrain the calc uses, and where it came from. */
+export interface FieldEffect<T extends string> {
+  /** What the calc uses. */
+  value: T;
+  /**
+   * 'ability': set by the winning switch-in ability.
+   * 'manual': the dropdown value, because no ability sets it or the user
+   * chose to ignore the ability (`ignored`).
+   */
+  source: 'ability' | 'manual';
+  /** An ability would set it, but the user picked by hand or ignored it. */
+  ignored: boolean;
+  /** Every setter on the field and which one won. */
+  abilities: FieldAbilityResult<T>;
+}
+
+export interface SwitchInField {
+  weather: FieldEffect<Weather>;
+  terrain: FieldEffect<Terrain>;
+  /** state.field with the weather and terrain in effect. */
+  field: FieldState;
+}
+
+const sideStateOf = (state: CalcState, slot: Slot): SideState =>
+  sideOf(slot) === 'left' ? state.field.attackerSide : state.field.defenderSide;
+
+function effectOf<T extends string>(abilities: FieldAbilityResult<T>, manual: T, ignore: boolean): FieldEffect<T> {
+  const winner = abilities.winner;
+  if (winner && !ignore) return { value: winner.value, source: 'ability', ignored: false, abilities };
+  return { value: manual, source: 'manual', ignored: winner !== null, abilities };
+}
+
+// Weather and terrain from the active Pokemon's switch-in abilities (Drought,
+// Electric Surge and the rest). The slowest setter activates last and wins,
+// by the same effective Speed the turn order uses; see field-abilities.ts.
+//
+// The weather is one value, so an ability's weather and a manual pick never
+// stack: the ability's weather is used unless the user has picked a weather
+// by hand or ignored the ability, and then the dropdown's value is used.
+export function switchInField(state: CalcState, pokemon: Record<Slot, Pokemon> = effectiveField(state)): SwitchInField {
+  const entries: SwitchInEntry[] = activeSlots(state).map((slot) => ({
+    id: slot,
+    pokemon: pokemon[slot],
+    tailwind: sideStateOf(state, slot).tailwind,
+    itemConsumed: unburdenActive(state.slots[slot]),
+  }));
+  const resolved = resolveSwitchInField({
+    game: state.game,
+    field: state.field,
+    isTrickRoom: state.isTrickRoom,
+    entries,
+  });
+  const weather = effectOf(resolved.weather, state.field.weather, state.ignoreAbilityWeather);
+  const terrain = effectOf(resolved.terrain, state.field.terrain, state.ignoreAbilityTerrain);
+  return { weather, terrain, field: { ...state.field, weather: weather.value, terrain: terrain.value } };
+}
+
+// Applies an edit from FieldInput, which shows the weather and terrain in
+// effect. Changing either one is a pick by hand: it is stored, and if an
+// ability was setting it, that ability is ignored from now on. An unchanged
+// weather keeps its stored value, so an ability's weather is never stored.
+export function editField(state: CalcState, next: FieldState): CalcState {
+  const shown = switchInField(state);
+  const weatherPicked = next.weather !== shown.weather.value;
+  const terrainPicked = next.terrain !== shown.terrain.value;
+  return {
+    ...state,
+    field: {
+      ...next,
+      weather: weatherPicked ? next.weather : state.field.weather,
+      terrain: terrainPicked ? next.terrain : state.field.terrain,
+    },
+    ignoreAbilityWeather: state.ignoreAbilityWeather || (weatherPicked && shown.weather.abilities.winner !== null),
+    ignoreAbilityTerrain: state.ignoreAbilityTerrain || (terrainPicked && shown.terrain.abilities.winner !== null),
+  };
+}
+
+// ignored true: use the dropdown's weather (or terrain) over the ability's.
+// ignored false: the ability's applies again.
+export function setAbilityFieldIgnored(state: CalcState, kind: FieldKind, ignored: boolean): CalcState {
+  return kind === 'weather' ? { ...state, ignoreAbilityWeather: ignored } : { ...state, ignoreAbilityTerrain: ignored };
+}
+
+// ---------------------------------------------------------------------------
 // Damage contexts
 // ---------------------------------------------------------------------------
 
@@ -393,7 +506,8 @@ export function fieldFor(field: FieldState, attackingSide: Side): FieldState {
 }
 
 /**
- * `attacker`'s move into `defender`, with switch-in stage changes applied.
+ * `attacker`'s move into `defender`, with switch-in stage changes and the
+ * weather and terrain in effect (switchInField) applied.
  * A spread move gets its 0.75x reduction from the calc itself (field in
  * doubles, move target allAdjacent or allAdjacentFoes), the same way against
  * each of the two foes.
@@ -403,6 +517,7 @@ export function matchupContext(
   attacker: Slot,
   defender: Slot,
   pokemon: Record<Slot, Pokemon> = effectiveField(state),
+  field: FieldState = switchInField(state, pokemon).field,
 ): DamageContext {
   const entry = state.slots[attacker];
   return {
@@ -410,7 +525,7 @@ export function matchupContext(
     attacker: pokemon[attacker],
     defender: pokemon[defender],
     move: entry.move,
-    field: fieldFor(state.field, sideOf(attacker)),
+    field: fieldFor(field, sideOf(attacker)),
     isCritical: entry.isCritical,
   };
 }
@@ -440,10 +555,11 @@ export interface Matchup {
  */
 export function allMatchups(state: CalcState): Record<Side, Matchup[]> {
   const pokemon = effectiveField(state);
+  const { field } = switchInField(state, pokemon);
   const out: Record<Side, Matchup[]> = { left: [], right: [] };
   for (const attacker of activeSlots(state)) {
     for (const defender of foesOf(state, attacker)) {
-      const ctx = matchupContext(state, attacker, defender, pokemon);
+      const ctx = matchupContext(state, attacker, defender, pokemon, field);
       out[sideOf(attacker)].push({ attacker, defender, ctx, outcome: runCalc(ctx) });
     }
   }
@@ -472,28 +588,29 @@ export function unburdenActive(entry: SlotState): boolean {
 }
 
 /**
- * The order the active Pokemon's moves resolve this turn. Tailwind comes from
- * each Pokemon's own side (FieldInput's attackerSide is the left side).
+ * The order the active Pokemon's moves resolve this turn, under the weather
+ * and terrain in effect (so Drought turns on Chlorophyll). Tailwind comes
+ * from each Pokemon's own side (FieldInput's attackerSide is the left side).
  * `moveHeals` tells Triage which moves heal; the move data has no such flag.
  */
 export function turnOrderFor(
   state: CalcState,
   moveHeals: (game: Game, moveName: string) => boolean = () => false,
   pokemon: Record<Slot, Pokemon> = effectiveField(state),
+  field: FieldState = switchInField(state, pokemon).field,
 ): TurnOrder {
   const entries: TurnOrderEntry[] = activeSlots(state).map((slot) => {
     const entry = state.slots[slot];
-    const side = sideOf(slot) === 'left' ? state.field.attackerSide : state.field.defenderSide;
     return {
       id: slot,
       pokemon: pokemon[slot],
       move: entry.move,
-      tailwind: side.tailwind,
+      tailwind: sideStateOf(state, slot).tailwind,
       itemConsumed: unburdenActive(entry),
       moveHeals: moveHeals(state.game, entry.move.name),
     };
   });
-  return turnOrder({ game: state.game, field: state.field, isTrickRoom: state.isTrickRoom, entries });
+  return turnOrder({ game: state.game, field, isTrickRoom: state.isTrickRoom, entries });
 }
 
 /**

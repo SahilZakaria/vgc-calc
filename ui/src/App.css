@@ -1,5 +1,6 @@
-/* App shell: header, the doubles board (top row, results band, bottom row),
-   field strip. Colors come from theme.css only. */
+/* App shell: header, the doubles board (top row, results band, bottom row)
+   with the field notes and turn order in a rail on its right, field strip.
+   Colors come from theme.css only. */
 
 .app {
   box-sizing: border-box;
@@ -7,7 +8,7 @@
   grid-template-rows: auto auto auto;
   align-content: start;
   gap: 8px;
-  max-width: 1600px;
+  max-width: 1760px;
   min-height: 100vh;
   margin: 0 auto;
   padding: 8px 16px 6px;
@@ -97,13 +98,43 @@
 /* Main area in doubles, laid out like a doubles board: the left side's two
    Pokemon in a row across the top, both results grids in a band across the
    middle, the right side's two Pokemon in a row across the bottom, each
-   panel above or below its own grid column (see BOARD_ORDER in App.tsx). Sized so the whole
-   screen, field strip included, fits a 1440x900 window without scrolling in
-   both games, with a results cell open in each grid. */
+   panel above or below its own grid column (see BOARD_ORDER in App.tsx).
+   The rail beside it holds the switch-in weather and terrain notes and the
+   turn order, top to bottom. Sized so the whole screen, field strip
+   included, fits a 1440x900 window without scrolling in both games, with a
+   results cell open in each grid. */
 .app-main {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 6px;
+}
+
+.app-main-doubles {
+  grid-template-columns: minmax(0, 1fr) clamp(240px, 17vw, 330px);
+  gap: 12px;
+}
+
+.app-board {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* The rail is as tall as the board and never makes the page taller: its
+   own height is zero and it stretches to the row the board sets. Long
+   reasons scroll inside it. The top padding clears the panel titles that
+   sit on their top borders. */
+.app-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  height: 0;
+  min-height: 100%;
+  min-width: 0;
+  padding-top: 8px;
+  overflow-y: auto;
 }
 
 .app-side {
@@ -122,20 +153,21 @@
   position: relative;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
+  gap: 12px;
   min-width: 0;
   min-height: 156px;
-  padding: 6px 10px 8px;
+  padding: 6px 10px 20px;
   border: 1px solid var(--color-border);
   border-radius: 9px;
   background: var(--color-surface);
 }
 
-/* Sits in the band's bottom-right corner, under the right grid's rolls. */
+/* Sits in the band's bottom-right corner, on its own line under the right
+   grid's rolls (the band's bottom padding holds it). */
 .app-hint {
   position: absolute;
   right: 12px;
-  bottom: 5px;
+  bottom: 4px;
   margin: 0;
   color: var(--color-text-muted);
   font-size: 0.7rem;
@@ -221,13 +253,9 @@
   font-size: 0.75rem;
 }
 
-/* The turn order strip spans the board, right under the results band. */
-.app-main-doubles > .to {
-  grid-column: 1 / -1;
-}
-
 /* Singles: under the grids, clear of the hint above it. */
-.app-main-singles .to {
+.app-main-singles .to,
+.app-main-singles .fen {
   margin-top: 6px;
 }
 
@@ -509,12 +537,17 @@
   min-height: 1.5rem;
 }
 
-/* Each grid: the table, with its open cell's full result to the right. */
+/* Each grid: the table, with its open cell's full result to the right. The
+   table gets the larger share so a cell's percentages fit on one line. */
 .app .mg {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  grid-template-columns: minmax(0, 1.12fr) minmax(0, 1fr);
   align-items: start;
-  gap: 10px;
+  gap: 8px;
+}
+
+.app .mg-corner {
+  width: 26%;
 }
 
 .app .mg-detail {
@@ -528,7 +561,7 @@
 }
 
 .app .result-display__summary {
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   line-height: 1.2;
 }
 
@@ -626,6 +659,17 @@
 @media (max-width: 1100px) {
   .app .field-input {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Doubles: the rail drops under the board at its natural height. */
+  .app-main-doubles {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .app-rail {
+    height: auto;
+    min-height: 0;
+    overflow: visible;
   }
 
   /* Singles stacks: left Pokemon, results, right Pokemon. */

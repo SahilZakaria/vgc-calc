@@ -86,3 +86,22 @@
   margin: 0;
   accent-color: var(--color-accent);
 }
+
+/* Where the weather or terrain comes from, beside its select. */
+.field-input__source {
+  padding: 0 6px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-size: 0.7em;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.field-input__source--ability {
+  color: var(--color-accent);
+}
+
+.field-input__source--manual {
+  color: var(--color-warn);
+}

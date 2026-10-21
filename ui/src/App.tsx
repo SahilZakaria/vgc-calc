@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useState } from 'react';
 import type { FieldState, Game, Move, Pokemon } from '../../src/types';
+import { FieldEffectNotes, fieldSourceBadge } from './components/FieldEffectNotes';
 import { FieldInput } from './components/FieldInput';
 import { MatchupGrid } from './components/MatchupGrid';
 import { MoveInput } from './components/MoveInput';
@@ -12,12 +13,15 @@ import {
   activeSlots,
   allMatchups,
   changedStats,
+  editField,
   editPokemon,
   effectiveField,
   initialState,
+  setAbilityFieldIgnored,
   setManualStages,
   stageEffects,
   switchGame,
+  switchInField,
   turnOrderFor,
   turnOrderNames,
   updateSlot,
@@ -92,13 +96,29 @@ export function App({ initial = initialState }: AppProps = {}) {
   const effects = useMemo(() => stageEffects(state), [state]);
   const shown = useMemo(() => effectiveField(state), [state]);
   const active = activeSlots(state);
+  // Weather and terrain from switch-in abilities (Drought, Electric Surge...)
+  // and the field the calc and turn order run on.
+  const fieldInfo = useMemo(() => switchInField(state, shown), [state, shown]);
 
   // Triage needs Showdown's "heal" flag, which arrives with the dex data;
   // re-run once it has loaded.
   const dexReady = useLegalData();
-  const order = useMemo(() => turnOrderFor(state, isHealingMove, shown), [state, shown, dexReady]);
-  const orderNames = useMemo(() => turnOrderNames(state, SLOT_LABELS), [state]);
-  const turnOrderPanel = <TurnOrderPanel order={order} names={orderNames} slotLabels={SLOT_LABELS} />;
+  const order = useMemo(
+    () => turnOrderFor(state, isHealingMove, shown, fieldInfo.field),
+    [state, shown, fieldInfo, dexReady],
+  );
+  const names = useMemo(() => turnOrderNames(state, SLOT_LABELS), [state]);
+  const nameOf = (id: string) => names[id as Slot] ?? id;
+  const setIgnored = (kind: 'weather' | 'terrain', ignored: boolean) =>
+    setState((s) => setAbilityFieldIgnored(s, kind, ignored));
+  // Field notes and turn order: a rail right of the board in doubles, under
+  // the grids in singles.
+  const rail = (
+    <>
+      <FieldEffectNotes info={fieldInfo} names={names} onSetIgnored={setIgnored} />
+      <TurnOrderPanel order={order} names={names} slotLabels={SLOT_LABELS} />
+    </>
+  );
 
   const setPokemon = (slot: Slot) => (pokemon: Pokemon) => setState((s) => editPokemon(s, slot, pokemon));
   const setManual = (slot: Slot) => (stats: BoostStat[], manual: boolean) =>
@@ -107,7 +127,7 @@ export function App({ initial = initialState }: AppProps = {}) {
   const setCritical = (slot: Slot) => (isCritical: boolean) => setState((s) => updateSlot(s, slot, { isCritical }));
   const setItemConsumed = (slot: Slot) => (itemConsumed: boolean) =>
     setState((s) => updateSlot(s, slot, { itemConsumed }));
-  const setField = (field: FieldState) => setState((s) => ({ ...s, field }));
+  const setField = (field: FieldState) => setState((s) => editField(s, field));
   const setTrickRoom = (isTrickRoom: boolean) => setState((s) => ({ ...s, isTrickRoom }));
   const setGame = (game: Game) => setState((s) => switchGame(s, game));
   const toggle = (side: Side) => (key: string) =>
@@ -131,6 +151,26 @@ export function App({ initial = initialState }: AppProps = {}) {
         />
       ));
 
+  const results = (
+    <div className="app-results" aria-live="polite">
+      <MatchupGrid
+        label={`${SIDE_LABELS.left} attacking`}
+        matchups={matchups.left}
+        expanded={expanded.left}
+        onToggle={toggle('left')}
+      />
+      <MatchupGrid
+        label={`${SIDE_LABELS.right} attacking`}
+        matchups={matchups.right}
+        expanded={expanded.right}
+        onToggle={toggle('right')}
+      />
+      <p className="app-hint">Click a cell to see all 16 rolls.</p>
+      {/* Singles: under the grids in the middle column. */}
+      {!state.field.isDoubles && rail}
+    </div>
+  );
+
   return (
     <div className={state.field.isDoubles ? 'app' : 'app app-singles'}>
       <header className="app-header">
@@ -140,41 +180,41 @@ export function App({ initial = initialState }: AppProps = {}) {
       </header>
 
       <main className={state.field.isDoubles ? 'app-main app-main-doubles' : 'app-main app-main-singles'}>
-        <div className="app-side app-side-left" aria-label={SIDE_LABELS.left} role="group">
-          {sideColumn('left')}
-        </div>
-
-        <div className="app-results" aria-live="polite">
-          <MatchupGrid
-            label={`${SIDE_LABELS.left} attacking`}
-            matchups={matchups.left}
-            expanded={expanded.left}
-            onToggle={toggle('left')}
-          />
-          <MatchupGrid
-            label={`${SIDE_LABELS.right} attacking`}
-            matchups={matchups.right}
-            expanded={expanded.right}
-            onToggle={toggle('right')}
-          />
-          <p className="app-hint">Click a cell to see all 16 rolls.</p>
-          {/* Singles: under the grids in the middle column. */}
-          {!state.field.isDoubles && turnOrderPanel}
-        </div>
-
-        {/* Doubles: a strip right under the results band. */}
-        {state.field.isDoubles && turnOrderPanel}
-
-        <div className="app-side app-side-right" aria-label={SIDE_LABELS.right} role="group">
-          {sideColumn('right')}
-        </div>
+        {state.field.isDoubles ? (
+          <>
+            <div className="app-board">
+              <div className="app-side app-side-left" aria-label={SIDE_LABELS.left} role="group">
+                {sideColumn('left')}
+              </div>
+              {results}
+              <div className="app-side app-side-right" aria-label={SIDE_LABELS.right} role="group">
+                {sideColumn('right')}
+              </div>
+            </div>
+            <aside className="app-rail" aria-label="Field and turn order">
+              {rail}
+            </aside>
+          </>
+        ) : (
+          <>
+            <div className="app-side app-side-left" aria-label={SIDE_LABELS.left} role="group">
+              {sideColumn('left')}
+            </div>
+            {results}
+            <div className="app-side app-side-right" aria-label={SIDE_LABELS.right} role="group">
+              {sideColumn('right')}
+            </div>
+          </>
+        )}
       </main>
 
       <footer className="app-field">
         <FieldInput
           game={state.game}
-          field={state.field}
+          field={fieldInfo.field}
           onChange={setField}
+          weatherSource={fieldSourceBadge('weather', fieldInfo.weather, nameOf)}
+          terrainSource={fieldSourceBadge('terrain', fieldInfo.terrain, nameOf)}
           sideLabels={FIELD_SIDE_LABELS}
           isTrickRoom={state.isTrickRoom}
           onTrickRoomChange={setTrickRoom}

@@ -219,4 +219,22 @@ describe('FieldInput rendering', () => {
     expect(named).toContain('<legend>Right side</legend>');
     expect(named).not.toContain('Attacker side');
   });
+
+  it('shows where the weather and terrain come from beside their selects', () => {
+    const html = renderToStaticMarkup(
+      <FieldInput
+        field={{ ...baseField(), weather: 'sun' }}
+        game="champions"
+        onChange={() => {}}
+        isTrickRoom={false}
+        onTrickRoomChange={() => {}}
+        weatherSource={{ text: 'Drought', kind: 'ability', title: "Set by Torkoal's Drought" }}
+        terrainSource={{ text: 'by hand', kind: 'manual' }}
+      />,
+    );
+    expect(html).toMatch(/<\/select><span class="field-input__source field-input__source--ability" title="Set by Torkoal&#x27;s Drought">Drought<\/span>/);
+    expect(html).toContain('<span class="field-input__source field-input__source--manual">by hand</span>');
+    const plain = renderToStaticMarkup(<FieldInput field={baseField()} game="champions" onChange={() => {}} isTrickRoom={false} onTrickRoomChange={() => {}} />);
+    expect(plain).not.toContain('field-input__source');
+  });
 });

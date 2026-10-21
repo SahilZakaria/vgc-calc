@@ -17,8 +17,8 @@ export interface TurnOrderPanelProps {
 }
 
 /**
- * The order this turn's moves resolve, one cell per Pokemon, each with the
- * reason for its place. Speed ties are shown as a coin flip: the tied moves
+ * The order this turn's moves resolve, top to bottom, one row per Pokemon:
+ * its place, name and move, with the reason for its place underneath. Speed ties are shown as a coin flip: the tied moves
  * share a place range ("2-3") and carry a "coin flip" tag instead of being
  * silently ordered.
  */
@@ -41,10 +41,8 @@ export function TurnOrderPanel({ order, names, slotLabels }: TurnOrderPanelProps
 
   return (
     <section className="to" aria-label="Turn order">
-      <h2 className="to-title">
-        Turn order
-        {order.isTrickRoom && <span className="to-room">Trick Room: {TRICK_ROOM_NOTE}</span>}
-      </h2>
+      <h2 className="to-title">Turn order</h2>
+      {order.isTrickRoom && <p className="to-room">Trick Room: {TRICK_ROOM_NOTE}</p>}
       <ol className="to-list">
         {order.moves.map((move) => {
           const id = move.entry.id;

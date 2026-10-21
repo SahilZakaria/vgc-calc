@@ -3,7 +3,7 @@
 .to {
   position: relative;
   min-width: 0;
-  padding: 6px 6px 3px;
+  padding: 10px 8px 6px;
   border: 1px solid var(--color-border);
   border-radius: 9px;
   background: var(--color-surface);
@@ -16,8 +16,6 @@
   position: absolute;
   top: -0.55rem;
   left: 10px;
-  display: flex;
-  gap: 8px;
   margin: 0;
   padding: 0 5px;
   background: var(--color-surface);
@@ -30,29 +28,33 @@
   white-space: nowrap;
 }
 
+/* Said once for the whole order, above the list. */
 .to-room {
+  margin: 0 0 5px;
   color: var(--color-warn);
-  letter-spacing: 0.02em;
-  text-transform: none;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.3;
 }
 
-/* The moves in resolution order, left to right. Cells grow with their text,
-   so a long reason borrows width from short ones instead of wrapping. */
+/* The moves in resolution order, top to bottom. Each row has the place on
+   the left, then the name and move on one line with the reason wrapping
+   underneath, so several stacked Speed modifiers just add lines. */
 .to-list {
-  display: flex;
-  gap: 6px;
+  display: grid;
+  gap: 5px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .to-item {
-  display: flex;
-  flex: 1 1 auto;
-  align-items: center;
-  gap: 7px;
+  display: grid;
+  grid-template-columns: 1.5rem minmax(0, 1fr);
+  align-items: start;
+  gap: 6px;
   min-width: 0;
-  padding: 1px 7px;
+  padding: 4px 7px 5px 4px;
   border: 1px solid var(--color-border);
   border-radius: 7px;
   background: var(--color-surface-2);
@@ -65,32 +67,32 @@
 }
 
 .to-place {
-  flex: none;
-  min-width: 1.2rem;
   color: var(--color-accent);
-  font-size: 1rem;
+  font-size: 1.15rem;
   font-weight: 700;
-  line-height: 1.2;
+  line-height: 1.15;
   text-align: center;
 }
 
+/* "2-3" for a tie is wider than one digit. */
 .to-item-tie .to-place {
   color: var(--color-warn);
+  font-size: 0.85rem;
+  line-height: 1.5;
 }
 
-/* Name, move, tie tag and reason flow on one line when they fit and wrap
-   when the reason is long. */
 .to-body {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0 6px;
+  display: grid;
+  gap: 1px;
   min-width: 0;
   line-height: 1.25;
 }
 
 .to-line {
-  display: contents;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 6px;
 }
 
 .to-name {
@@ -99,8 +101,9 @@
 
 .to-reason {
   color: var(--color-text-muted);
-  font-size: 0.7rem;
-  line-height: 1.2;
+  font-size: 0.72rem;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
 }
 
 .to-tag {
@@ -138,10 +141,4 @@
 .to-copy:focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 1px;
-}
-
-@media (max-width: 900px) {
-  .to-list {
-    flex-direction: column;
-  }
 }

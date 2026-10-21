@@ -1,7 +1,12 @@
+import { calculate as smogonCalculate } from '@smogon/calc';
 import { describe, expect, it } from 'vitest';
+// Test-only use of the oracle adapter, for reference rolls in the weather tests.
+import { smogonGeneration, toSmogonField, toSmogonMove, toSmogonPokemon } from '../../src/oracle/smogon-adapter';
+import type { FieldState } from '../../src/types';
 import {
   activeSlots,
   allMatchups,
+  editField,
   editPokemon,
   effectivePokemon,
   fieldFor,
@@ -11,9 +16,11 @@ import {
   matchupContext,
   matchupLabel,
   runCalc,
+  setAbilityFieldIgnored,
   setManualStages,
   stageEffects,
   switchGame,
+  switchInField,
   turnOrderFor,
   turnOrderNames,
   unburdenActive,
@@ -458,5 +465,137 @@ describe('turnOrderNames', () => {
     const names = turnOrderNames(mirror, labels);
     expect(names.left1).toBe('Garchomp (Left 1)');
     expect(names.right1).toBe('Garchomp (Right 1)');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Switch-in weather and terrain
+// ---------------------------------------------------------------------------
+
+// Reference rolls for Charizard's Heat Wave into Gardevoir with the weather
+// set directly on @smogon/calc's Field, independent of switchInField.
+function referenceRolls(state: CalcState, weather: FieldState['weather']): number[] {
+  const ctx = matchupContext(state, 'left2', 'right2');
+  const field = toSmogonField({ ...state.field, weather });
+  const result = smogonCalculate(
+    smogonGeneration(state.game),
+    toSmogonPokemon(state.game, ctx.attacker),
+    toSmogonPokemon(state.game, ctx.defender),
+    toSmogonMove(state.game, ctx.move),
+    field,
+  );
+  return (result.damage as number[]).slice();
+}
+
+function heatWaveRolls(state: CalcState): number[] {
+  const outcome = runCalc(matchupContext(state, 'left2', 'right2'));
+  if (!outcome.ok) throw new Error(outcome.error);
+  return outcome.result.rolls;
+}
+
+describe('switch-in weather and terrain', () => {
+  it('has nothing to apply on the starting field', () => {
+    const info = switchInField(initialState());
+    expect(info.weather.abilities.winner).toBeNull();
+    expect(info.weather).toMatchObject({ value: 'none', source: 'manual', ignored: false });
+    expect(info.terrain).toMatchObject({ value: 'none', source: 'manual', ignored: false });
+  });
+
+  it('applies Drought to the damage calc as Sun', () => {
+    const state = withAbility(initialState(), 'right2', 'Drought');
+    const info = switchInField(state);
+    expect(info.weather).toMatchObject({ value: 'sun', source: 'ability', ignored: false });
+    expect(info.field.weather).toBe('sun');
+    expect(state.field.weather).toBe('none'); // nothing stored
+    expect(matchupContext(state, 'left2', 'right2').field.weather).toBe('sun');
+    expect(heatWaveRolls(state)).toEqual(referenceRolls(state, 'sun'));
+    expect(heatWaveRolls(state)).not.toEqual(referenceRolls(state, 'none'));
+  });
+
+  it('applies the weather to every matchup in allMatchups', () => {
+    const state = withAbility(initialState(), 'right1', 'Drizzle');
+    for (const m of [...allMatchups(state).left, ...allMatchups(state).right]) {
+      expect(m.ctx.field.weather).toBe('rain');
+    }
+  });
+
+  it('applies a terrain setter', () => {
+    const state = withAbility(initialState(), 'left1', 'Psychic Surge');
+    expect(switchInField(state).field.terrain).toBe('psychic');
+    expect(matchupContext(state, 'right1', 'left1').field.terrain).toBe('psychic');
+  });
+
+  it('does not stack with the same weather picked by hand: Sun once, same rolls', () => {
+    const drought = withAbility(initialState(), 'right2', 'Drought');
+    const both: CalcState = { ...drought, field: { ...drought.field, weather: 'sun' } };
+    expect(switchInField(both).field.weather).toBe('sun');
+    expect(heatWaveRolls(both)).toEqual(heatWaveRolls(drought));
+    expect(heatWaveRolls(both)).toEqual(referenceRolls(both, 'sun'));
+  });
+
+  it('weather war: the slower setter wins (Gardevoir 100 under Charizard 167)', () => {
+    let state = withAbility(initialState(), 'left2', 'Drought'); // Charizard, 167
+    state = withAbility(state, 'right2', 'Drizzle'); // Gardevoir, 100
+    const info = switchInField(state);
+    expect(info.weather.value).toBe('rain');
+    expect(info.weather.abilities.winner?.id).toBe('right2');
+    expect(info.weather.abilities.setters.map((s) => s.id)).toEqual(['left2', 'right2']);
+    expect(heatWaveRolls(state)).toEqual(referenceRolls(state, 'rain'));
+  });
+
+  it('weather war under Trick Room: the faster setter wins', () => {
+    let state = withAbility(initialState(), 'left2', 'Drought');
+    state = withAbility(state, 'right2', 'Drizzle');
+    expect(switchInField({ ...state, isTrickRoom: true }).weather.value).toBe('sun');
+  });
+
+  it('ignores Pokemon off the field in singles', () => {
+    const state = withAbility(initialState(), 'right2', 'Drought');
+    expect(switchInField({ ...state, field: { ...state.field, isDoubles: false } }).weather.value).toBe('none');
+  });
+
+  it('runs the turn order under the ability weather (Chlorophyll in Drought sun)', () => {
+    let state = withAbility(initialState(), 'right2', 'Drought');
+    state = withAbility(state, 'right1', 'Chlorophyll'); // Incineroar 80 -> 160
+    const incin = turnOrderFor(state).moves.find((m) => m.entry.id === 'right1');
+    expect(incin?.speed.speed).toBe(160);
+  });
+
+  it('a manual pick overrides the ability, and Use ability brings it back', () => {
+    const state = withAbility(initialState(), 'right2', 'Drought');
+    const shown = switchInField(state).field;
+    const picked = editField(state, { ...shown, weather: 'rain' });
+    expect(picked.ignoreAbilityWeather).toBe(true);
+    expect(picked.field.weather).toBe('rain');
+    expect(switchInField(picked).weather).toMatchObject({ value: 'rain', source: 'manual', ignored: true });
+    expect(heatWaveRolls(picked)).toEqual(referenceRolls(picked, 'rain'));
+
+    const back = setAbilityFieldIgnored(picked, 'weather', false);
+    expect(switchInField(back).weather).toMatchObject({ value: 'sun', source: 'ability' });
+  });
+
+  it('Ignore falls back to the dropdown weather', () => {
+    const state = withAbility(initialState(), 'right2', 'Drought');
+    const ignored = setAbilityFieldIgnored(state, 'weather', true);
+    expect(switchInField(ignored).weather).toMatchObject({ value: 'none', source: 'manual', ignored: true });
+    // Terrain is separate.
+    expect(ignored.ignoreAbilityTerrain).toBe(false);
+  });
+
+  it('editing another field setting does not store the ability weather or ignore it', () => {
+    const state = withAbility(initialState(), 'right2', 'Drought');
+    const shown = switchInField(state).field;
+    const next = editField(state, { ...shown, isGravity: true });
+    expect(next.field.isGravity).toBe(true);
+    expect(next.field.weather).toBe('none');
+    expect(next.ignoreAbilityWeather).toBe(false);
+    expect(switchInField(next).weather.value).toBe('sun');
+  });
+
+  it('a manual pick with no ability setter just sets the weather', () => {
+    const state = initialState();
+    const next = editField(state, { ...state.field, weather: 'sand' });
+    expect(next.field.weather).toBe('sand');
+    expect(next.ignoreAbilityWeather).toBe(false);
   });
 });
