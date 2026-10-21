@@ -2,16 +2,25 @@
    with the field notes and turn order in a rail on its right, field strip.
    Colors come from theme.css only. */
 
+/* Doubles page width. The board, the gap and the turn order rail form one
+   block centered in the window with equal margins left and right; the
+   header and field strip span the same block. The board takes half of
+   the width beyond 1696px (its old 1568px cap plus the rail and gap), and
+   the other half goes to the two margins, which never drop below 16px. So
+   at 1440 the board is 1272px as before, and at 1920 it is 1680px with
+   52px margins. */
 .app {
+  --rail-width: 128px;
+  --rail-gap: 8px;
+  --page-margin: max(16px, (100vw - 1712px) / 4);
   box-sizing: border-box;
   display: grid;
   grid-template-rows: auto auto auto;
   align-content: start;
   gap: 8px;
-  max-width: 1600px;
   min-height: 100vh;
-  margin: 0 auto;
-  padding: 8px 16px 6px;
+  margin: 0;
+  padding: 8px var(--page-margin) 6px;
 }
 
 .app *,
@@ -109,19 +118,11 @@
   gap: 6px;
 }
 
-/* The rail is a narrow column that hangs into the page's right margin. The
-   page keeps its 1600px width, and main reaches past its right edge by as
-   much of the rail as the margin can hold (keeping 8px clear of the window
-   edge), so on wide windows the board is exactly the page width and on
-   narrower ones it gives up at most the rail's width. */
+/* The rail is a narrow fixed column right of the board; the board takes the
+   rest of the page width (see .app). */
 .app-main-doubles {
-  --rail-width: 128px;
-  --rail-gap: 8px;
   grid-template-columns: minmax(0, 1fr) var(--rail-width);
   gap: 6px var(--rail-gap);
-  margin-right: calc(
-    -1 * clamp(0px, (100vw - 1600px) / 2 - 8px, var(--rail-width) + var(--rail-gap))
-  );
 }
 
 .app-board {
@@ -288,13 +289,13 @@
 
 /* Singles: one Pokemon a side, in the two-Pokemon arrangement. The left
    Pokemon, the results and the right Pokemon sit in one row, with both grids
-   stacked in the middle. The page drops its width cap, the row takes the
+   stacked in the middle. The page fills the window, the row takes the
    height the header and field strip leave, and all three columns stretch to
    fill it, the Pokemon panels taking the larger share. */
 .app-singles {
   grid-template-rows: auto minmax(0, 1fr) auto;
   align-content: stretch;
-  max-width: none;
+  padding: 8px 16px 6px;
 }
 
 .app-main-singles {
@@ -777,7 +778,6 @@
   /* Doubles: the rail drops under the board at its natural height. */
   .app-main-doubles {
     grid-template-columns: minmax(0, 1fr);
-    margin-right: 0;
   }
 
   .app-rail {
